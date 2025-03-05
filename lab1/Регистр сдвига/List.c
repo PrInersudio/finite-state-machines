@@ -42,23 +42,23 @@ void initList(List *list) {
     list->size = 0;
 }
 
-void *getListValue(List *list, long long unsigned i) {
+void *getListValue(List *list, uint64_t i) {
     struct Node *node = (struct Node *)list->head;
     while (i--) node = getNodeNext(node);
     return getNodeValue(node);
 }
 
-void setListValue(List *list, long long unsigned i, void *value) {
+void setListValue(List *list, uint64_t i, void *value) {
     struct Node *node = (struct Node *)list->head;
     while (i--) node = getNodeNext(node);
     setNodeValue(node, value);
 }
 
-long long unsigned getListSize(List *list) {
+uint64_t getListSize(List *list) {
     return list->size;
 }
 
-static int addFirstListValue(List *list, void *value) {
+static int pushListFirst(List *list, void *value) {
     list->head = (void *)newNode(value, NULL);
     if (!list->head) return -1;
     setNodeNext(list->head, list->head);
@@ -67,7 +67,7 @@ static int addFirstListValue(List *list, void *value) {
     return 0;
 }
 
-static int addNextListValue(List *list, void *value) {
+static int pushListNext(List *list, void *value) {
     struct Node *node = newNode(value, list->head);
     if (!node) return -1;
     setNodeNext(list->tail, node);
@@ -76,13 +76,28 @@ static int addNextListValue(List *list, void *value) {
     return 0;
 }
 
-int addListValue(List *list, void *value) {
+int pushList(List *list, void *value) {
     if (list->size == 0)
-        return addFirstListValue(list, value);
-    return addNextListValue(list, value);
+        return pushListFirst(list, value);
+    return pushListNext(list, value);
 }
 
-static void *popFirstListValue(List *list) {
+static int pushForwardListNext(List *list, void *value) {
+    struct Node *node = newNode(value, list->head);
+    if (!node) return -1;
+    setNodeNext(node, list->head);
+    list->head = node;
+    ++list->size;
+    return 0;
+}
+
+int pushForwardList(List *list, void *value) {
+    if (list->size == 0)
+        return pushListFirst(list, value);
+    return pushForwardListNext(list, value);
+}
+
+void *topList(List *list) {
     struct Node *prev_head = (struct Node *)list->head;
     if (list->size == 1) {
         list->head = NULL;
@@ -98,7 +113,8 @@ static void *popFirstListValue(List *list) {
     return value;
 }
 
-static void *popNotFirstListValue(List *list, long long unsigned i) {
+void *popListAtIndex(List *list, uint64_t i) {
+    if (i == 0) return topList(list);
     struct Node *prev_node = (struct Node *)list->head;
     while (--i) prev_node = getNodeNext(prev_node);
     struct Node *node = getNodeNext(prev_node);
@@ -110,9 +126,8 @@ static void *popNotFirstListValue(List *list, long long unsigned i) {
     return value;
 }
 
-void *popListValue(List *list, long long unsigned i) {
-    if (i == 0) return popFirstListValue(list);
-    return popNotFirstListValue(list, i);
+void *popList(List *list) {
+    return popListAtIndex(list, list->size - 1);
 }
 
 void freeList(List *list) {

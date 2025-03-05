@@ -3,14 +3,14 @@
 
 #include <stdio.h>
 #include "BitArray.h"
-#include "List.h"
+#include "EquivalenceClass.h"
 
 struct ShiftRegister {
     uint8_t length;
     BitArray phi;
     BitArray psi;
-    unsigned state;
-    unsigned mask;
+    uint32_t state;
+    uint32_t mask;
 };
 
 int initShiftRegisterFromFile(struct ShiftRegister* reg, char* settings_file);
@@ -21,7 +21,7 @@ void freeShiftRegister(struct ShiftRegister* reg);
 struct MinimizedShiftRegister {
     List *equivalence_classes;
     uint8_t original_is_minimal;
-    long long unsigned degree_of_distinguishability;
+    uint64_t degree_of_distinguishability;
 };
 
 int minimizeShiftRegister(struct MinimizedShiftRegister *minimized, struct ShiftRegister* original);
