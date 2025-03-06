@@ -195,10 +195,10 @@ uint64_t deepIndexOfList(List *list, void *value, ValueComparator compare) {
     return i;
 }
 
-uint64_t containsList(List *list, void *value, size_t value_size) {
+uint8_t containsList(List *list, void *value, size_t value_size) {
     return indexOfList(list, value, value_size) < list->size;
 }
 
-uint64_t deepContainsList(List *list, void *value, ValueComparator compare) {
+uint8_t deepContainsList(List *list, void *value, ValueComparator compare) {
     return deepIndexOfList(list, value, compare) < list->size;
 }

@@ -25,8 +25,8 @@ void freeList(List *list);
 void transfer(List *src, List *dst);
 uint64_t indexOfList(List *list, void *value, size_t value_size);
 uint64_t deepIndexOfList(List *list, void *value, ValueComparator compare);
-uint64_t containsList(List *list, void *value, size_t value_size);
-uint64_t deepContainsList(List *list, void *value, ValueComparator compare);
+uint8_t containsList(List *list, void *value, size_t value_size);
+uint8_t deepContainsList(List *list, void *value, ValueComparator compare);
 
 struct ListIterator {
     void *node;
