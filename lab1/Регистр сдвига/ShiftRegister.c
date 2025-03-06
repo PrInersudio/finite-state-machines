@@ -236,3 +236,12 @@ void printMinimizedShiftRegister(struct MinimizedShiftRegister *minimized) {
     if (minimized->original_is_minimal) printf("Да\n");
     else printf("Нет\n");
 }
+
+int shiftRegisterToGraph(struct ShiftRegister *reg, struct Graph *graph) {
+    if (initGraph(graph, (uint64_t)1 << reg->length)) return -1;
+    for (uint32_t i = 0; i <= ((uint32_t)1 << reg->length) - 1; ++i) {
+        setOrDeleteEdge(graph, i, getStateFunctionValue(reg, i, 0), 1);
+        setOrDeleteEdge(graph, i, getStateFunctionValue(reg, i, 1), 1);
+    }
+    return 0;
+}

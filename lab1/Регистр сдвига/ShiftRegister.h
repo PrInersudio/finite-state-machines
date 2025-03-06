@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "BitArray.h"
 #include "EquivalenceClass.h"
+#include "Graph.h"
 
 struct ShiftRegister {
     uint8_t length;
@@ -17,6 +18,7 @@ int initShiftRegisterFromFile(struct ShiftRegister* reg, char* settings_file);
 int readState(struct ShiftRegister* reg);
 uint8_t useShiftRegister(struct ShiftRegister* reg, uint8_t x);
 void freeShiftRegister(struct ShiftRegister* reg);
+int shiftRegisterToGraph(struct ShiftRegister *reg, struct Graph *graph);
 
 struct MinimizedShiftRegister {
     List *equivalence_classes;
