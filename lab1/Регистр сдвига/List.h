@@ -2,6 +2,9 @@
 #define LIST_H
 
 #include <stdint.h>
+#include <string.h>
+
+typedef uint8_t (*ValueComparator)(void *, void *);
 
 typedef struct {
     void *head;
@@ -20,6 +23,10 @@ void *popListAtIndex(List *list, uint64_t i);
 void *popList(List *list);
 void freeList(List *list);
 void transfer(List *src, List *dst);
+uint64_t indexOfList(List *list, void *value, size_t value_size);
+uint64_t deepIndexOfList(List *list, void *value, ValueComparator compare);
+uint64_t containsList(List *list, void *value, size_t value_size);
+uint64_t deepContainsList(List *list, void *value, ValueComparator compare);
 
 struct ListIterator {
     void *node;

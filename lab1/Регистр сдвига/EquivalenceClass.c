@@ -13,7 +13,7 @@ void printEquivalenceClass(List *class) {
     printf("}\n");
 }
 
-void printEquivalenceClasses(List *classes) {
+void printListOfEquivalenceClasses(List *classes) {
     struct ListIterator it;
     initListIterator(classes, &it);
     for (uint64_t i = 0; i < getListSize(classes); ++i) {
@@ -42,32 +42,23 @@ void freeListOfEquivalenceClasses(List *classes, uint8_t free_states) {
     }       
 }
 
-uint8_t doesEquivalenceClassContainState(List *class, uint32_t state) {
-    struct ListIterator it;
-    initListIterator(class, &it);
-    for (uint64_t i = 0; i < getListSize(class); ++i) {
-        if (*((uint32_t *)getListIteratorValue(&it)) == state) return 1;
-        incListIterator(&it);
-    }
-    return 0;
-}
-
-uint64_t findClassOfState(List *classes, uint32_t state) {
+uint64_t findEquivalenceClassOfState(List *classes, uint32_t state) {
     struct ListIterator it;
     initListIterator(classes, &it);
     uint64_t i;
     for (i = 0; i < getListSize(classes); ++i) {
-        if (
-            doesEquivalenceClassContainState(
-                getListIteratorValue(&it), state
-            )
-        ) break;
+        if (containsList(getListIteratorValue(&it), &state, sizeof(uint32_t)))
+            break;
         incListIterator(&it);
     }
     return i;
 }
 
-void freeArrayOfClasses(List **classes, uint64_t num_of_classes) {
+void freeArrayOfEquivalenceClasses(List **classes, uint64_t num_of_classes, uint8_t free_states) {
+    if (free_states) {
+        for (uint64_t i = 0; i < num_of_classes; ++i)
+            freeEquivalenceClass(classes[i], 1);
+    }
     for (uint64_t i = 0; i < num_of_classes; ++i) {
         if (classes[i]) {
             freeList(classes[i]);
@@ -77,12 +68,7 @@ void freeArrayOfClasses(List **classes, uint64_t num_of_classes) {
     free(classes);
 }
 
-void freeArrayOfClassesWithStates(List **classes, uint64_t num_of_classes) {
-    for (uint64_t i = 0; i < num_of_classes; ++i) freeEquivalenceClass(classes[i], 1);
-    freeArrayOfClasses(classes, num_of_classes);
-}
-
-int arrayOfClassesToList(
+int arrayToListEquivalenceClasses(
     List *list, List **array, uint64_t num_of_classes,
     uint8_t free_states_in_case_of_error
 ) {
@@ -102,13 +88,13 @@ int arrayOfClassesToList(
     return 0;
 }
 
-List **initArrayOfClasses(uint64_t num_of_classes) {
+List **initArrayOfEquivalenceClasses(uint64_t num_of_classes) {
     List **classes = (List **)malloc(num_of_classes * sizeof(List *));
     if (!classes) return NULL;
     for (uint64_t i = 0; i < num_of_classes; ++i) {
         List *list = (List *)malloc(sizeof(List));
         if (!list) {
-            freeArrayOfClasses(classes, i);
+            freeArrayOfEquivalenceClasses(classes, i, 0);
             return NULL;
         }
         initList(list);

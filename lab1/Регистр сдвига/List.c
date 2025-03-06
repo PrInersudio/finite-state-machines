@@ -172,3 +172,33 @@ void transfer(List *src, List *dst) {
     src->tail = NULL;
     src->size = 0;
 }
+
+uint64_t indexOfList(List *list, void *value, size_t value_size) {
+    uint64_t i = 0;
+    struct Node *node = (struct Node *)list->head;
+    do {
+        if (!memcmp(node->value, value, value_size)) break;
+        node = getNodeNext(node);
+        ++i;
+    } while (node != (struct Node *)list->head);
+    return i;
+}
+
+uint64_t deepIndexOfList(List *list, void *value, ValueComparator compare) {
+    uint64_t i = 0;
+    struct Node *node = (struct Node *)list->head;
+    do {
+        if (!compare(node->value, value)) break;
+        node = getNodeNext(node);
+        ++i;
+    } while (node != (struct Node *)list->head);
+    return i;
+}
+
+uint64_t containsList(List *list, void *value, size_t value_size) {
+    return indexOfList(list, value, value_size) < list->size;
+}
+
+uint64_t deepContainsList(List *list, void *value, ValueComparator compare) {
+    return deepIndexOfList(list, value, compare) < list->size;
+}

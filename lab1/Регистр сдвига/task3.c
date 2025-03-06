@@ -1,4 +1,3 @@
-#include <string.h>
 #include "ShiftRegister.h"
 
 int main(int argc, char **argv) {
@@ -30,7 +29,7 @@ int main(int argc, char **argv) {
     }
     if (getListSize(&components) != 1) {
         printf("Не является сильно связаным.\n");
-        printEquivalenceClasses(&components);
+        printListOfEquivalenceClasses(&components);
     } else {
         freeListOfEquivalenceClasses(&components, 1);
         printf("Является сильно связаным.\n");
@@ -44,7 +43,7 @@ int main(int argc, char **argv) {
     }
     if (getListSize(&components) != 1) {
         printf("Не является связаным.\n");
-        printEquivalenceClasses(&components);
+        printListOfEquivalenceClasses(&components);
     } else
         printf("Является связаным.\n");
     freeListOfEquivalenceClasses(&components, 1);
