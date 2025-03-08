@@ -90,24 +90,55 @@ static uint8_t getOutputFunctionValue(struct ShiftRegister* reg, uint32_t state,
     return getBitArrayElement(&reg->psi, state | phi);
 }
 
-static List **minimizationFirstStep(struct ShiftRegister* original) {
+static int minimizationFirstStep(struct ShiftRegister* original, List* first_step) {
     List **classes = initArrayOfEquivalenceClasses(4);
-    if (!classes) return NULL;
-    for (uint32_t i = 0; i <= ((uint32_t)1 << original->length) - 1; ++i) {
-        uint32_t *state = (uint32_t *)malloc(sizeof(uint32_t));
-        if (!state) goto err;
-        *state = i;
-        uint8_t state_ouput_mask = (getOutputFunctionValue(original, *state, 0) << 1) |
-            getOutputFunctionValue(original, *state, 1);
-        if (pushList(classes[state_ouput_mask], state)) {
-            free(state);
-            goto err;
+    if (!classes) return -1;
+    for (
+        uint32_t state = 0;
+        state <= ((uint32_t)1 << original->length) - 1;
+        ++state
+    ) {
+        uint8_t state_ouput_mask =
+            (getOutputFunctionValue(original, state, 0) << 1) |
+            getOutputFunctionValue(original, state, 1);
+        if (pushList(classes[state_ouput_mask], &state, sizeof(uint32_t))) {
+            freeArrayOfEquivalenceClasses(classes, 4);
+            return -2;
         }
     }
-    return classes;
-err:
-    freeArrayOfEquivalenceClasses(classes, 4, 1);
-    return NULL;
+    if (arrayToListEquivalenceClasses(first_step, classes, 4)) return -3;
+    return 0;
+}
+
+static int putStateIntoNewClass(
+    struct ShiftRegister* original,
+    List *current_step,
+    List **classes,
+    uint32_t state
+) {
+    uint64_t state_transition_mask =
+        findEquivalenceClassOfState(
+            current_step,
+            getStateFunctionValue(original, state, 0)
+        ) * getListSize(current_step) +
+        findEquivalenceClassOfState(
+            current_step,
+            getStateFunctionValue(original, state, 1)
+        );
+        if (pushList(classes[state_transition_mask], &state, sizeof(uint32_t))) {
+            return -1;
+        }
+    return 0;
+}
+
+static int copyOneStateClass(List *next_step, List *class) {
+    List copy;
+    if (copyList(&copy, class)) return -1;
+    if (pushList(next_step, &copy, sizeof(List))) {
+        clearList(&copy);
+        return -2;
+    }
+    return 0;
 }
 
 static int divideClass(
@@ -116,28 +147,26 @@ static int divideClass(
     List *next_step,
     List *class
 ) {
-    uint64_t num_of_new_classes = getListSize(current_step) * getListSize(current_step);
+    uint64_t num_of_new_classes =
+        getListSize(current_step) *
+        getListSize(current_step);
     List **classes = initArrayOfEquivalenceClasses(num_of_new_classes);
     if (!classes) return -1;
     struct ListIterator it;
-    initListIterator(class, &it);
-    for (uint64_t i = 0; i < getListSize(class); ++i) {
-        uint32_t *state = getListIteratorValue(&it);
-        uint64_t state_transition_mask =
-            findEquivalenceClassOfState(current_step, getStateFunctionValue(original, *state, 0)) *
-            getListSize(current_step) +
-            findEquivalenceClassOfState(current_step, getStateFunctionValue(original, *state, 1));
-        if (pushList(classes[state_transition_mask], state)) goto err;
+    setListIteratorNode(&it, getListHead(class));
+    do {
+        if (putStateIntoNewClass(original, current_step, classes, *(uint32_t *)getListIteratorValue(&it))) {
+            freeArrayOfEquivalenceClasses(classes, num_of_new_classes);
+            return -2;
+        }
         incListIterator(&it);
-    }
+    } while (!compareListIteratorNode(&it, getListHead(class)));
     List list_of_new_classes;
-    if (arrayToListEquivalenceClasses(&list_of_new_classes, classes, num_of_new_classes, 0)) goto err;
-    free(classes);
+    if (arrayToListEquivalenceClasses(
+        &list_of_new_classes, classes, num_of_new_classes
+    )) return -3;
     transfer(&list_of_new_classes, next_step);
     return 0;
-err:
-    freeArrayOfEquivalenceClasses(classes, num_of_new_classes, 0);
-    return -2;
 }
 
 static int minimizationStep(
@@ -145,22 +174,19 @@ static int minimizationStep(
     List *current_step,
     List *next_step
 ) {
-    initList(next_step);
     struct ListIterator it;
-    initListIterator(current_step, &it);
-    for (uint64_t i = 0; i < getListSize(current_step); ++i) {
+    setListIteratorNode(&it, getListHead(current_step));
+    do {
         List *class = getListIteratorValue(&it);
-        if (getListSize(current_step) == 1) {
-            if (pushList(next_step, class)) goto err;
-        }
-        else {
-            if (divideClass(original, current_step, next_step, class)) goto err;
-        }
+        if (getListSize(class) == 1) {
+            if (copyOneStateClass(next_step, class)) goto err;
+        } 
+        else if (divideClass(original, current_step, next_step, class)) goto err;
         incListIterator(&it);
-    }
+    } while (!compareListIteratorNode(&it, getListHead(current_step)));
     return 0;
 err:
-    freeListOfEquivalenceClasses(next_step, 0);
+    deepClearList(next_step, (FreeValueFunction)clearList);
     return -1;
 }
 
@@ -168,19 +194,12 @@ int minimizeShiftRegister(
     struct MinimizedShiftRegister *minimized,
     struct ShiftRegister* original
 ) {
-    List *current_step = (List *)malloc(sizeof(List));
+    List *current_step = malloc(sizeof(List));
     if (!current_step) return -1;
-    List **first_step = minimizationFirstStep(original);
-    if (!first_step) {
+    if (minimizationFirstStep(original, current_step)) {
         free(current_step);
         return -2;
     }
-    if (arrayToListEquivalenceClasses(current_step, first_step, 4, 1)) {
-        free(current_step);
-        freeArrayOfEquivalenceClasses(first_step, 4, 1);
-        return -3;
-    }
-    free(first_step);
     if (getListSize(current_step) == 1) {
         minimized->equivalence_classes = current_step;
         minimized->degree_of_distinguishability = 0;
@@ -188,11 +207,12 @@ int minimizeShiftRegister(
         return 0;
     }
     int rc = 0;
-    List *next_step = (List *)malloc(sizeof(List));
+    List *next_step = malloc(sizeof(List));
     if (!next_step) {
         rc = -4;
         goto end;
     }
+    initList(next_step);
     uint64_t degree_of_distinguishability = 0;
     while(1)  {
         ++degree_of_distinguishability;
@@ -204,7 +224,7 @@ int minimizeShiftRegister(
             goto end;
         }
         if (getListSize(next_step) == getListSize(current_step)) break;
-        freeListOfEquivalenceClasses(current_step, 0);
+        deepClearList(current_step, (FreeValueFunction)clearList);
         List *temp = current_step;
         current_step = next_step;
         next_step = temp;
@@ -215,13 +235,13 @@ int minimizeShiftRegister(
         getListSize(minimized->equivalence_classes) ==
         (uint64_t)1 << original->length;
 end:
-    freeListOfEquivalenceClasses(current_step, rc != 0);
+    deepClearList(current_step, (FreeValueFunction)clearList);
     free(current_step);
     return rc;
 }
 
 void freeMinimizedShiftRegister(struct MinimizedShiftRegister *minimized) {
-    freeListOfEquivalenceClasses(minimized->equivalence_classes, 1);
+    deepClearList(minimized->equivalence_classes, (FreeValueFunction)clearList);
     free(minimized->equivalence_classes);
     minimized->degree_of_distinguishability = 0;
     minimized->original_is_minimal = 0;
