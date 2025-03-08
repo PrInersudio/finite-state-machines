@@ -31,11 +31,11 @@ int main(int argc, char **argv) {
         printf("Не является сильно связаным.\n");
         printListOfEquivalenceClasses(&components);
     } else {
-        deepClearList(&components, (FreeValueFunction)clearList);
+        freeListOfEquivalenceClasses(&components, 1);
         printf("Является сильно связаным.\n");
         goto end;
     }
-    deepClearList(&components, (FreeValueFunction)clearList);
+    freeListOfEquivalenceClasses(&components, 1);
     makeUnoriented(&graph);
     if (getComponents(&graph, &components)) {
         rc = -4;
@@ -44,8 +44,9 @@ int main(int argc, char **argv) {
     if (getListSize(&components) != 1) {
         printf("Не является связаным.\n");
         printListOfEquivalenceClasses(&components);
-    } else printf("Является связаным.\n");
-    deepClearList(&components, (FreeValueFunction)clearList);
+    } else
+        printf("Является связаным.\n");
+    freeListOfEquivalenceClasses(&components, 1);
 end:
     freeShiftRegister(&reg);
     freeGraph(&graph);
