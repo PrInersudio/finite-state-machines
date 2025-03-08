@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 int initBitArray(BitArray *array, uint64_t length) {
-    if (!(array->bucket = (uint8_t *)malloc((length + 7) / 8 * sizeof(uint8_t))))
+    if (!(array->bucket = malloc((length + 7) / 8 * sizeof(uint8_t))))
         return -1;
     for (uint64_t i = 0; i < (length + 7) / 8; ++i)
         array->bucket[i] = 0;

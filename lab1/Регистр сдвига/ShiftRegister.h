@@ -1,7 +1,6 @@
 #ifndef SHIFT_REGISTER_H
 #define SHIFT_REGISTER_H
 
-#include <stdio.h>
 #include "BitArray.h"
 #include "EquivalenceClass.h"
 #include "Graph.h"
