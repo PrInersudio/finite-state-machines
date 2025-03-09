@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <string.h>
 
-typedef void (*FreeValueFunction)(void *);
-typedef uint8_t (*ValueComparator)(void *, void *);
+typedef void (*FreeValueFunction)(void *value);
+typedef uint8_t (*ValueComparator)(void *value1, void *value2);
 
 typedef struct {
     void *head;

@@ -7,13 +7,13 @@ int main(int argc, char **argv) {
     }
     struct ShiftRegister reg;
     if (initShiftRegisterFromFile(&reg, argv[1])) return -1;
-    struct MinimizedShiftRegister minimized;
+    struct Minimized minimized;
     if (minimizeShiftRegister(&minimized, &reg))    {
         freeShiftRegister(&reg);
         return -2;
     }
-    printMinimizedShiftRegister(&minimized);
+    printMinimized(&minimized);
     freeShiftRegister(&reg);
-    freeMinimizedShiftRegister(&minimized);
+    freeMinimized(&minimized);
     return 0;
 }

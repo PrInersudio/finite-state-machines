@@ -206,6 +206,7 @@ void transfer(List *src, List *dst) {
 }
 
 uint64_t indexOfList(List *list, void *value, size_t value_size) {
+    if (!list->size) return 0;
     uint64_t i = 0;
     struct Node *node = list->head;
     do {
@@ -217,6 +218,7 @@ uint64_t indexOfList(List *list, void *value, size_t value_size) {
 }
 
 uint64_t deepIndexOfList(List *list, void *value, ValueComparator compare) {
+    if (!list->size) return 0;
     uint64_t i = 0;
     struct Node *node = list->head;
     do {

@@ -2,8 +2,8 @@
 #define SHIFT_REGISTER_H
 
 #include "BitArray.h"
-#include "EquivalenceClass.h"
 #include "Graph.h"
+#include "Minimized.h"
 
 struct ShiftRegister {
     uint8_t length;
@@ -18,15 +18,7 @@ int readState(struct ShiftRegister* reg);
 uint8_t useShiftRegister(struct ShiftRegister* reg, uint8_t x);
 void freeShiftRegister(struct ShiftRegister* reg);
 int shiftRegisterToGraph(struct ShiftRegister *reg, struct Graph *graph);
-
-struct MinimizedShiftRegister {
-    List *equivalence_classes;
-    uint8_t original_is_minimal;
-    uint64_t degree_of_distinguishability;
-};
-
-int minimizeShiftRegister(struct MinimizedShiftRegister *minimized, struct ShiftRegister* original);
-void freeMinimizedShiftRegister(struct MinimizedShiftRegister *minimized);
-void printMinimizedShiftRegister(struct MinimizedShiftRegister *minimized);
+int minimizeShiftRegister(struct Minimized *minimized, struct ShiftRegister* original);
+void printState(uint32_t *state);
 
 #endif

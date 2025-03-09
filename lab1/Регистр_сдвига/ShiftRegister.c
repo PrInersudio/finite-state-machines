@@ -1,4 +1,5 @@
 #include "ShiftRegister.h"
+#include <inttypes.h>
 #include <stdlib.h>
 
 int initShiftRegisterFromFile(struct ShiftRegister* reg, char* settings_file) {
@@ -7,10 +8,12 @@ int initShiftRegisterFromFile(struct ShiftRegister* reg, char* settings_file) {
     int rc = 0;
     char buf[3];
     fgets(buf, 3, fp);
-    if (sscanf(buf, "%u", &reg->length) != 1) {
+    unsigned temp;
+    if (sscanf(buf, "%u", &temp) != 1) {
         rc = -2;
         goto end;
     }
+    reg->length = (uint8_t)temp;
     if (reg->length > 32) {
         rc = -3;
         goto end;
@@ -102,7 +105,7 @@ static int minimizationFirstStep(struct ShiftRegister* original, List* first_ste
             (getOutputFunctionValue(original, state, 0) << 1) |
             getOutputFunctionValue(original, state, 1);
         if (pushList(classes[state_ouput_mask], &state, sizeof(uint32_t))) {
-            freeArrayOfEquivalenceClasses(classes, 4);
+            freeArrayOfEquivalenceClasses(classes, 4, NULL);
             return -2;
         }
     }
@@ -116,15 +119,11 @@ static int putStateIntoNewClass(
     List **classes,
     uint32_t state
 ) {
-    uint64_t state_transition_mask =
-        findEquivalenceClassOfState(
-            current_step,
-            getStateFunctionValue(original, state, 0)
-        ) * getListSize(current_step) +
-        findEquivalenceClassOfState(
-            current_step,
-            getStateFunctionValue(original, state, 1)
-        );
+    uint32_t next_state_0 = getStateFunctionValue(original, state, 0);
+    uint32_t next_state_1 = getStateFunctionValue(original, state, 1);
+    uint64_t state_transition_mask = getListSize(current_step) *
+        findEquivalenceClassOfState(current_step, &next_state_0, sizeof(uint32_t)) +
+        findEquivalenceClassOfState(current_step, &next_state_1, sizeof(uint32_t));
         if (pushList(classes[state_transition_mask], &state, sizeof(uint32_t))) {
             return -1;
         }
@@ -156,7 +155,7 @@ static int divideClass(
     setListIteratorNode(&it, getListHead(class));
     do {
         if (putStateIntoNewClass(original, current_step, classes, *(uint32_t *)getListIteratorValue(&it))) {
-            freeArrayOfEquivalenceClasses(classes, num_of_new_classes);
+            freeArrayOfEquivalenceClasses(classes, num_of_new_classes, NULL);
             return -2;
         }
         incListIterator(&it);
@@ -190,8 +189,12 @@ err:
     return -1;
 }
 
+void printState(uint32_t *state) {
+    printf("%" PRIu32 "", *state);
+}
+
 int minimizeShiftRegister(
-    struct MinimizedShiftRegister *minimized,
+    struct Minimized *minimized,
     struct ShiftRegister* original
 ) {
     List *current_step = malloc(sizeof(List));
@@ -204,6 +207,8 @@ int minimizeShiftRegister(
         minimized->equivalence_classes = current_step;
         minimized->degree_of_distinguishability = 0;
         minimized->original_is_minimal = 0;
+        minimized->printState = (PrintState)printState;
+        minimized->freeValue = NULL;
         return 0;
     }
     int rc = 0;
@@ -216,8 +221,8 @@ int minimizeShiftRegister(
     uint64_t degree_of_distinguishability = 0;
     while(1)  {
         ++degree_of_distinguishability;
-        printf("Классы %u эквивалентности:\n", degree_of_distinguishability);
-        printListOfEquivalenceClasses(current_step);
+        printf("Классы %" PRIu64 " эквивалентности:\n", degree_of_distinguishability);
+        printListOfEquivalenceClasses(current_step, (PrintState)printState);
         if (minimizationStep(original, current_step, next_step)) {
             free(next_step);
             rc = -5;
@@ -234,27 +239,12 @@ int minimizeShiftRegister(
     minimized->original_is_minimal =
         getListSize(minimized->equivalence_classes) ==
         (uint64_t)1 << original->length;
+    minimized->printState = (PrintState)printState;
+    minimized->freeValue = NULL;
 end:
     deepClearList(current_step, (FreeValueFunction)clearList);
     free(current_step);
     return rc;
-}
-
-void freeMinimizedShiftRegister(struct MinimizedShiftRegister *minimized) {
-    deepClearList(minimized->equivalence_classes, (FreeValueFunction)clearList);
-    free(minimized->equivalence_classes);
-    minimized->degree_of_distinguishability = 0;
-    minimized->original_is_minimal = 0;
-}
-
-void printMinimizedShiftRegister(struct MinimizedShiftRegister *minimized) {
-    printf("Классы эквивалентности:\n");
-    printListOfEquivalenceClasses(minimized->equivalence_classes);
-    printf("Приведённый вес: %llu\n", getListSize(minimized->equivalence_classes));
-    printf("Степень различимости: %llu\n", minimized->degree_of_distinguishability);
-    printf("Минимальный? ");
-    if (minimized->original_is_minimal) printf("Да\n");
-    else printf("Нет\n");
 }
 
 int shiftRegisterToGraph(struct ShiftRegister *reg, struct Graph *graph) {
@@ -265,3 +255,14 @@ int shiftRegisterToGraph(struct ShiftRegister *reg, struct Graph *graph) {
     }
     return 0;
 }
+
+/* int getMemoryShiftRegister(struct ShiftRegister *reg) {
+    struct MinimizedShiftRegister minimized;
+    if (minimizeShiftRegister(&minimized, reg)) return -1;
+    uint64_t upper_bound = (
+        getListSize(minimized.equivalence_classes) *
+        (getListSize(minimized.equivalence_classes) - 1)
+    ) >> 1;
+    freeMinimizedShiftRegister(&minimized);
+
+} */

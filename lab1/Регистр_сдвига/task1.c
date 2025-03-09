@@ -1,4 +1,5 @@
 #include "ShiftRegister.h"
+#include <inttypes.h>
 
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -12,16 +13,15 @@ int main(int argc, char **argv) {
         rc = -2;
         goto end;
     }
-    int8_t x;
     printf("Введите x: ");
     while(1) {
         switch (fgetc(stdin)) {
             case '1':
-                printf("y = %u\n", useShiftRegister(&reg, 1));
+                printf("y = %" PRIu8 "\n", useShiftRegister(&reg, 1));
                 printf("Введите x: ");
                 break;
             case '0':
-                printf("y = %u\n", useShiftRegister(&reg, 0));
+                printf("y = %" PRIu8 "\n", useShiftRegister(&reg, 0));
                 printf("Введите x: ");
                 break;
             case ' ':

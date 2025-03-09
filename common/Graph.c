@@ -1,5 +1,6 @@
 #include "Graph.h"
 #include <stdlib.h>
+#include <inttypes.h>
 #include "EquivalenceClass.h"
 
 static int noop(const char *__restrict__ __format, ...) {
@@ -55,12 +56,12 @@ static int deepFirstSearch(
     setBitArrayElement(visited, current_node, 1);
     if (pushList(component, &current_node, sizeof(uint64_t)))
         return -1;
-    printSearchLog("deepFirstSearch вход. Текущее состояение: %u\n", current_node);
+    printSearchLog("deepFirstSearch вход. Текущее состояение: %" PRIu64 "\n", current_node);
     for (uint64_t i = 0; i < graph->num_of_nodes; ++i) {
         if (!getBitArrayElement(visited, i) && edgeExists(graph, current_node, i))
             if (deepFirstSearch(graph, component, visited, i)) return -2;
     }
-    printSearchLog("deepFirstSearch выход. Текущее состояение: %u\n", current_node);
+    printSearchLog("deepFirstSearch выход. Текущее состояение: %" PRIu64 "\n", current_node);
     return 0;
 }
 
@@ -71,11 +72,11 @@ static int invertedDeepFirstSearch(
     uint64_t current_node
 ) {
     setBitArrayElement(visited, current_node, 1);
-    printSearchLog("invertedDeepFirstSearch вход. Текущее состояение: %u\n", current_node);
+    printSearchLog("invertedDeepFirstSearch вход. Текущее состояение: %" PRIu64 "\n", current_node);
     for (uint64_t i = 0; i < graph->num_of_nodes; ++i)
         if (!getBitArrayElement(visited, i) && edgeExists(graph, current_node, i))
             if (invertedDeepFirstSearch(graph, component, visited, i)) return -1;
-    printSearchLog("invertedDeepFirstSearch выход. Текущее состояение: %u\n", current_node);
+    printSearchLog("invertedDeepFirstSearch выход. Текущее состояение: %" PRIu64 "\n", current_node);
     if (pushList(component, &current_node, sizeof(uint64_t)))
         return -2;
     return 0;
@@ -153,7 +154,7 @@ int getStronglyConnectedComponents(struct Graph *graph, List *components) {
     initList(components);
     while (getListSize(&topological_sort)) {
         uint64_t *node = topList(&topological_sort, 0);
-        printSearchLog("getStronglyConnectedComponents. Текущее состояние: %u\n", *node);
+        printSearchLog("getStronglyConnectedComponents. Текущее состояние: %" PRIu64 "\n", *node);
         if (!getBitArrayElement(&visited, *node)) {
             List component;
             initList(&component);
@@ -179,7 +180,7 @@ end:
 void printGraph(struct Graph *graph) {
     for (uint64_t i = 0; i < graph->num_of_nodes; ++i) {
         for (uint64_t j = 0; j < graph->num_of_nodes; ++j)
-            printf("%u ", edgeExists(graph, i, j));
+            printf("%" PRIu8 "", edgeExists(graph, i, j));
         printf("\n");
     }
 }
