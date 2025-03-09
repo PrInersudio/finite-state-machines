@@ -3,11 +3,10 @@
 
 #include <stdint.h>
 #include "List.h"
+#include "Hash.h"
 
 #define INIT_NUM_OF_BUCKETS 257
 #define MAX_LOAD_FACTOR 4.0
-
-typedef uint64_t (*Hash)(void *value);
 
 typedef struct {
     void *buckets;

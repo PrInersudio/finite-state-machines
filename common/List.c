@@ -1,6 +1,5 @@
 #include "List.h"
 #include <stdlib.h>
-#include <string.h>
 
 struct Node {
     void *value;
@@ -50,6 +49,10 @@ static int setNodeValue(struct Node *node, void *value, size_t value_size) {
     node->value = new_value;
     node->value_size = value_size;
     return 0;
+}
+
+static size_t getNodeValueSize(struct Node *node) {
+    return node->value_size;
 }
 
 static struct Node *getNodeNext(struct Node *node) {
@@ -258,4 +261,68 @@ int copyList(List *dst, List *src) {
         node = getNodeNext(node);
     } while (node != src->head);
     return 0;
+}
+
+uint64_t hashList(const List *list) {
+    if (!list->size) return 0;
+    uint64_t hash = 0;
+    struct Node* node = list->head;
+    do {
+        hash += hashBytes(getNodeValue(node), getNodeValueSize(node));
+        hash *= 31;
+        node = getNodeNext(node);
+    } while(node != list->head);
+    return hash;
+}
+
+uint64_t deepHashList(const List *list, Hash hashValue) {
+    if (!list->size) return 0;
+    uint64_t hash = 0;
+    struct Node* node = list->head;
+    do {
+        hash += hashValue(getNodeValue(node));
+        hash *= 31;
+        node = getNodeNext(node);
+    } while(node != list->head);
+    return hash;
+}
+
+uint8_t compareLists(List *list1, List *list2) {
+    if (list1->size != list2->size) return 0;
+    if (!list1->size) return 1;
+    struct Node *node1 = list1->head;
+    struct Node *node2 = list2->head;
+    do {
+        if (
+            getNodeValueSize(node1) != getNodeValueSize(node2) ||
+            memcmp(getNodeValue(node1), getNodeValue(node2), getNodeValueSize(node1))
+        ) return 0;
+        node1 = getNodeNext(node1);
+        node2 = getNodeNext(node2);
+    } while (node1 != list1->head);
+    return 1;
+}
+
+uint8_t deepCompareLists(List *list1, List *list2, ValueComparator compare) {
+    if (list1->size != list2->size) return 0;
+    if (!list1->size) return 1;
+    struct Node *node1 = list1->head;
+    struct Node *node2 = list2->head;
+    do {
+        if (!compare(getNodeValue(node1), getNodeValue(node2)))
+            return 0;
+        node1 = getNodeNext(node1);
+        node2 = getNodeNext(node2);
+    } while (node1 != list1->head);
+    return 1;
+}
+
+void printList(List *list, PrintValue printValue) {
+    if (!list->size) return;
+    struct Node *node = list->head;
+    do {
+        printValue(getNodeValue(node));
+        printf(" ");
+        node = getNodeNext(node);
+    } while (node != list->head);
 }

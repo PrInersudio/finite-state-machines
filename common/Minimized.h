@@ -8,7 +8,7 @@ struct Minimized {
     List *equivalence_classes;
     uint8_t original_is_minimal;
     uint64_t degree_of_distinguishability;
-    PrintState printState;
+    PrintValue printState;
     FreeValueFunction freeValue;
 };
 

@@ -2,27 +2,19 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-void printEquivalenceClass(List *class, PrintState printState) {
+void printEquivalenceClass(List *class, PrintValue printState) {
     printf("{ ");
-    if (getListSize(class)) {
-        struct ListIterator it;
-        setListIteratorNode(&it, getListHead(class));
-        do {
-            printState(getListIteratorValue(&it));
-            printf(" ");
-            incListIterator(&it);
-        } while (!compareListIteratorNode(&it, getListHead(class)));
-    }
+    printList(class, printState);
     printf("}\n");
 }
 
-void printListOfEquivalenceClasses(List *classes, PrintState print_state) {
+void printListOfEquivalenceClasses(List *classes, PrintValue printState) {
     if (!getListSize(classes)) return;
     struct ListIterator it;
     setListIteratorNode(&it, getListHead(classes));
     do {
         printf("\t");
-        printEquivalenceClass(getListIteratorValue(&it), print_state);
+        printEquivalenceClass(getListIteratorValue(&it), printState);
         incListIterator(&it);
     } while (!compareListIteratorNode(&it, getListHead(classes)));
 }

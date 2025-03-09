@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
     }
     if (getListSize(&components) != 1) {
         printf("Не является сильно связаным.\n");
-        printListOfEquivalenceClasses(&components, (PrintState)printState);
+        printListOfEquivalenceClasses(&components, (PrintValue)printState);
     } else {
         deepClearList(&components, (FreeValueFunction)clearList);
         printf("Является сильно связаным.\n");
@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
     }
     if (getListSize(&components) != 1) {
         printf("Не является связаным.\n");
-        printListOfEquivalenceClasses(&components, (PrintState)printState);
+        printListOfEquivalenceClasses(&components, (PrintValue)printState);
     } else printf("Является связаным.\n");
     deepClearList(&components, (FreeValueFunction)clearList);
 end:
