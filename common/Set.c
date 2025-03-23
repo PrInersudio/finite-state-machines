@@ -64,7 +64,7 @@ static struct Buckets *newBuckets(
 
 static int pushBuckets(struct Buckets *buckets, void *value, uint64_t *set_size) {
     uint64_t index = buckets->hash(value) % buckets->num_of_buckets;
-    //fprintf(stderr, "pushBuckets %lu %p %lu\n", index, buckets->buckets[index], buckets->buckets[index]->size);
+    fprintf(stderr, "pushBuckets %lu %p %lu\n", index, buckets->buckets[index], buckets->buckets[index]->size);
     if (deepContainsList(buckets->buckets[index], value, buckets->compare))
         return 0;
     if (pushList(buckets->buckets[index], value, buckets->value_size))
