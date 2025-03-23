@@ -25,21 +25,18 @@ struct IOTuple {
 uint64_t hashIOTuple(struct IOTuple *io);
 uint8_t compareIOTuples(struct IOTuple *io1, struct IOTuple *io2);
 struct IOTuple *newIOTuple(
-    size_t input_size,
-    size_t output_size,
-    Hash hashInput,
-    Hash hashOutput,
-    ValueComparator compareInputs,
-    ValueComparator compareOutputs,
-    FreeValueFunction freeInput,
-    FreeValueFunction freeOutput,
-    PrintValue printInput,
-    PrintValue printOutput
+    size_t input_size, size_t output_size,
+    Hash hashInput, Hash hashOutput,
+    ValueComparator compareInputs, ValueComparator compareOutputs,
+    FreeValueFunction freeInput, FreeValueFunction freeOutput,
+    PrintValue printInput, PrintValue printOutput
 );
 void freeIOTuple(struct IOTuple *io);
 int pushInputIOTuple(struct IOTuple *io, void *input);
 int pushOutputIOTuple(struct IOTuple *io, void *output);
 struct IOTuple *copyIOTuple(struct IOTuple *src);
+List *getIOTupleInputSequence(struct IOTuple *io);
+void printIOTuple(struct IOTuple *io);
 int pushBackInputIOTuple(struct IOTuple *io, void *input);
 int pushBackOutputIOTuple(struct IOTuple *io, void *output);
 
@@ -47,9 +44,11 @@ struct Trace {
     struct IOTuple *io;
     void *final_state;
     FreeValueFunction freeState;
+    size_t state_size;
 };
 
-struct Trace *newTrace(
+int initTrace(
+    struct Trace *trace,
     size_t input_size,
     size_t output_size,
     Hash hashInput,
@@ -58,8 +57,8 @@ struct Trace *newTrace(
     ValueComparator compareOutputs,
     FreeValueFunction freeInput,
     FreeValueFunction freeOutput,
-    PrintValue printInput,
-    PrintValue printOutput,
+    PrintInput printInput,
+    PrintInput printOutput,
     FreeValueFunction freeState
 );
 void freeTrace(struct Trace *trace);
@@ -70,7 +69,7 @@ struct IOTuple *popTraceIOTuple(struct Trace *trace);
 int setTraceFinalState(struct Trace *trace, void *state, size_t state_size, uint8_t free_prev_mode);
 int pushInputTrace(struct Trace *trace, void *input);
 int pushOutputTrace(struct Trace *trace, void *output);
-struct Trace *copyTrace(struct Trace *src);
+int copyTrace(struct Trace *dst, struct Trace *src);
 int pushBackInputTrace(struct Trace *trace, void *input);
 int pushBackOutputTrace(struct Trace *trace, void *output);
 
@@ -79,6 +78,7 @@ void freeTraces(List **traces, uint64_t num_of_states);
 
 void freeSetsOfIOTuples(Set **sets, uint64_t num_of_states, uint8_t deep);
 Set **newSetsOfIOTuples(uint64_t num_of_states);
+void printSetsOfIOTuples(Set **sets, uint64_t num_of_states);
 int checkMemoryCriteria(Set **sets, uint64_t num_of_states);
 
 struct Memory {

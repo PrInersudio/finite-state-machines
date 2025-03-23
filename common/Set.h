@@ -18,9 +18,9 @@ int initSet(
     size_t value_size,
     Hash hash,
     ValueComparator compare,
-    FreeValueFunction free_value
+    FreeValueFunction freeValue,
+    PrintValue printValue
 );
-
 int pushSet(Set *set, void *value);
 void popSet(Set *set, void *value, uint8_t deep);
 uint8_t containsSet(Set *set, void *value);
@@ -30,5 +30,6 @@ int copySet(Set *dst, Set *src);
 int unionSet(Set *result, Set *first, Set *second);
 int intersectSet(Set *result, Set *first, Set *second);
 int subtract(Set *difference, Set *minuend, Set *subtrahend);
+void printSet(Set *set);
 
 #endif

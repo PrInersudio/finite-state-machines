@@ -8,13 +8,14 @@ struct Buckets {
     size_t value_size;
     Hash hash;
     ValueComparator compare;
-    FreeValueFunction free_value;
+    FreeValueFunction freeValue;
+    PrintValue printValue;
 };
 
 static void freeBuckets(struct Buckets *buckets, uint8_t deep) {
     if (deep)
         for (uint64_t i = 0; i < buckets->num_of_buckets; ++i) {
-            deepClearList(buckets->buckets[i], buckets->free_value);
+            deepClearList(buckets->buckets[i], buckets->freeValue);
             free(buckets->buckets[i]);
         }
     else {
@@ -32,7 +33,8 @@ static struct Buckets *newBuckets(
     size_t value_size,
     Hash hash,
     ValueComparator compare,
-    FreeValueFunction free_value
+    FreeValueFunction freeValue,
+    PrintValue printValue
 ) {
     struct Buckets *buckets = malloc(sizeof(struct Buckets));
     if (!buckets) return NULL;
@@ -45,7 +47,8 @@ static struct Buckets *newBuckets(
     buckets->value_size = value_size;
     buckets->hash = hash;
     buckets->compare = compare;
-    buckets->free_value = free_value;
+    buckets->freeValue = freeValue;
+    buckets->printValue = printValue;
     for (uint64_t i = 0; i < num_of_buckets; ++i) {
         List *bucket = malloc(sizeof(List));
         if (!bucket) {
@@ -53,31 +56,35 @@ static struct Buckets *newBuckets(
             freeBuckets(buckets, 0);
             return NULL;
         }
+        initList(bucket);
         buckets->buckets[i] = bucket;
     }
     return buckets;
 }
 
-static int pushBuckets(struct Buckets *buckets, void *value) {
-    uint64_t index = buckets->hash(value) & buckets->num_of_buckets;
+static int pushBuckets(struct Buckets *buckets, void *value, uint64_t *set_size) {
+    uint64_t index = buckets->hash(value) % buckets->num_of_buckets;
+    //fprintf(stderr, "pushBuckets %lu %p %lu\n", index, buckets->buckets[index], buckets->buckets[index]->size);
     if (deepContainsList(buckets->buckets[index], value, buckets->compare))
         return 0;
     if (pushList(buckets->buckets[index], value, buckets->value_size))
         return -1;
+    ++(*set_size);
     return 0;
 }
 
-static void popBuckets(struct Buckets *buckets, void *value, uint8_t deep) {
+static void popBuckets(struct Buckets *buckets, void *value, uint8_t deep, uint64_t *set_size) {
     uint64_t index = buckets->hash(value) & buckets->num_of_buckets;
     uint64_t list_index = deepIndexOfList(buckets->buckets[index], value, buckets->compare);
     if (list_index >= getListSize(buckets->buckets[index])) return;
     value = popListAtIndex(buckets->buckets[index], list_index, 0);
-    if (deep) buckets->free_value(value);
+    if (deep) buckets->freeValue(value);
     free(value);
+    --(*set_size);
 }
 
 static uint8_t containsBuckets(struct Buckets *buckets, void *value) {
-    uint64_t index = buckets->hash(value) & buckets->num_of_buckets;
+    uint64_t index = buckets->hash(value) % buckets->num_of_buckets;
     return deepContainsList(buckets->buckets[index], value, buckets->compare);
 }
 
@@ -98,13 +105,20 @@ static ValueComparator getBucketsValueComparator(struct Buckets *buckets) {
 }
 
 static FreeValueFunction getBucketsFreeValueFunction(struct Buckets *buckets) {
-    return buckets->free_value;
+    return buckets->freeValue;
 }
 
-static struct Buckets *rehashBuckets(struct Buckets* old, uint64_t new_num_of_buckets) {
+static PrintValue getBucketsPrintValue(struct Buckets *buckets) {
+    return buckets->printValue;
+}
+
+static struct Buckets *rehashBuckets(
+    struct Buckets* old,
+    uint64_t new_num_of_buckets, uint64_t *new_set_size
+) {
     struct Buckets *new = newBuckets(
         new_num_of_buckets, old->value_size,
-        old->hash, old->compare, old->free_value
+        old->hash, old->compare, old->freeValue, old->printValue
     );
     if (!new) return NULL;
     for (uint64_t i = 0; i < old->num_of_buckets; ++i) {
@@ -112,7 +126,7 @@ static struct Buckets *rehashBuckets(struct Buckets* old, uint64_t new_num_of_bu
         struct ListIterator jt;
         setListIteratorNode(&jt, getListHead(old->buckets[i]));
         do {
-            if (pushBuckets(new, getListIteratorValue(&jt))) {
+            if (pushBuckets(new, getListIteratorValue(&jt), new_set_size)) {
                 freeBuckets(new, 0);
                 return NULL;
             }
@@ -163,25 +177,34 @@ int initSet(
     size_t value_size,
     Hash hash,
     ValueComparator compare,
-    FreeValueFunction free_value
+    FreeValueFunction freeValue,
+    PrintValue printValue
 ) {
-    set->buckets = newBuckets(INIT_NUM_OF_BUCKETS, value_size, hash, compare, free_value);
+    set->buckets = newBuckets(
+        INIT_NUM_OF_BUCKETS,
+        value_size, hash, compare, freeValue, printValue
+    );
     if (!set->buckets) return -1;
     set->size = 0;
     return 0;
 }
 
 static uint64_t findClosestBiggerPrime(uint64_t number) {
+    fprintf(stderr, "findClosestBiggerPrime1 %lu\n", number);
     if (number <= 2) return 2;
-    for (;;++number) {
-        uint8_t divider_found = 0;
-        for (uint64_t i = 2; i <= (uint64_t)sqrt(number); ++i)
+    if (number % 2 == 0) ++number;
+    uint8_t divider_found;
+    number -= 2;
+    do {
+        number += 2;
+        divider_found = 0;
+        for (uint64_t i = 3; i <= (uint64_t)sqrt(number); i += 2)
             if (number % i == 0) {
-                divider_found = 0;
+                divider_found = 1;
                 break;
             }
-        if (!divider_found) break;
-    }
+    } while(divider_found);
+    fprintf(stderr, "findClosestBiggerPrime2 %lu\n", number);
     return number;
 }
 
@@ -190,29 +213,35 @@ static double loadFactor(Set *set) {
 }
 
 static int rehash(Set *set) {
+    uint64_t new_set_size = set->size;
     while (loadFactor(set) > MAX_LOAD_FACTOR) {
+        fprintf(stderr, "rehash %lu %lu %f\n", set->size, getNumOfBuckets(set->buckets), loadFactor(set));
+        new_set_size = 0;
         uint64_t new_num_of_buckets = findClosestBiggerPrime(
             2 * getNumOfBuckets(set->buckets) + 1
         );
-        struct Buckets *new_buckets = rehashBuckets(set->buckets, new_num_of_buckets);
+        fprintf(stderr, "rehash1 %lu\n", new_set_size);
+        struct Buckets *new_buckets = rehashBuckets(set->buckets, new_num_of_buckets, &new_set_size);
+        fprintf(stderr, "rehash2 %lu\n", new_set_size);
         if (!new_buckets) return -1;
         freeBuckets(set->buckets, 0);
         set->buckets = new_buckets;
     }
+    set->size = new_set_size;
     return 0;
 }
 
 int pushSet(Set *set, void *value) {
-    if (pushBuckets(set->buckets, value)) return -1;
+    if (pushBuckets(set->buckets, value, &set->size)) return -1;
     if (rehash(set)) {
-        popBuckets(set->buckets, value, 0);
+        popBuckets(set->buckets, value, 0, &set->size);
         return -1;
     }
     return 0;
 }
 
 void popSet(Set *set, void *value, uint8_t deep) {
-    popBuckets(set->buckets, value, deep);
+    popBuckets(set->buckets, value, deep, &set->size);
 }
 
 uint8_t containsSet(Set *set, void *value) {
@@ -233,7 +262,7 @@ static int copyElementsSet(Set *dst, Set *src) {
         initBucketsIterator(src->buckets, &it);
         !reachedEndBucketsIterator(src->buckets, &it);
         incBucketsIterator(src->buckets, &it)
-    )  if (pushBuckets(dst->buckets, getBucketsIteratorValue(&it))) {
+    )  if (pushBuckets(dst->buckets, getBucketsIteratorValue(&it), &dst->size)) {
         freeSet(dst, 0);
         return -1;
     }
@@ -246,7 +275,8 @@ static int initSetByExample(Set *new, Set *example) {
         getBucketsValueSize(example->buckets),
         getBucketsHash(example->buckets),
         getBucketsValueComparator(example->buckets),
-        getBucketsFreeValueFunction(example->buckets)
+        getBucketsFreeValueFunction(example->buckets),
+        getBucketsPrintValue(example->buckets)
     );
 }
 
@@ -282,7 +312,7 @@ int intersectSet(Set *result, Set *first, Set *second) {
         incBucketsIterator(first->buckets, &it)
     ) if (
         containsSet(second, getBucketsIteratorValue(&it)) &&
-        pushBuckets(result->buckets, getBucketsIteratorValue(&it))
+        pushBuckets(result->buckets, getBucketsIteratorValue(&it), &result->size)
     ) goto err;
     if (rehash(result)) goto err;
     return 0;
@@ -298,6 +328,21 @@ int subtract(Set *difference, Set *minuend, Set *subtrahend) {
         initBucketsIterator(subtrahend->buckets, &it);
         !reachedEndBucketsIterator(subtrahend->buckets, &it);
         incBucketsIterator(subtrahend->buckets, &it)
-    ) popBuckets(difference->buckets, getBucketsIteratorValue(&it), 0);
+    ) popBuckets(difference->buckets, getBucketsIteratorValue(&it), 0, &difference->size);
     return 0;
+}
+
+void printSet(Set *set) {
+    struct BucketsIterator it;
+    PrintValue printValue = getBucketsPrintValue(set->buckets);
+    printf("{ ");
+    for (
+        initBucketsIterator(set->buckets, &it);
+        !reachedEndBucketsIterator(set->buckets, &it);
+        incBucketsIterator(set->buckets, &it)
+    ) { 
+        printValue(getBucketsIteratorValue(&it));
+        printf(" ");
+    }
+    printf("}");
 }

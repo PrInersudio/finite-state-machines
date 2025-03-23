@@ -225,7 +225,7 @@ uint64_t deepIndexOfList(List *list, void *value, ValueComparator compare) {
     uint64_t i = 0;
     struct Node *node = list->head;
     do {
-        if (!compare(getNodeValue(node), value)) break;
+        if (compare(getNodeValue(node), value)) break;
         node = getNodeNext(node);
         ++i;
     } while (node != list->head);
@@ -280,9 +280,12 @@ uint64_t deepHashList(const List *list, Hash hashValue) {
     uint64_t hash = 0;
     struct Node* node = list->head;
     do {
+        fprintf(stderr, "deepHashList %p %p %p %p\n", node, node->value, node->next, hashValue);
         hash += hashValue(getNodeValue(node));
+        fprintf(stderr, "deepHashList 1\n");
         hash *= 31;
         node = getNodeNext(node);
+        fprintf(stderr, "deepHashList 2\n");
     } while(node != list->head);
     return hash;
 }

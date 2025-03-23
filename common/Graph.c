@@ -77,7 +77,7 @@ static int invertedDeepFirstSearch(
         if (!getBitArrayElement(visited, i) && edgeExists(graph, current_node, i))
             if (invertedDeepFirstSearch(graph, component, visited, i)) return -1;
     printSearchLog("invertedDeepFirstSearch выход. Текущее состояение: %" PRIu64 "\n", current_node);
-    if (pushList(component, &current_node, sizeof(uint64_t)))
+    if (pushForwardList(component, &current_node, sizeof(uint64_t)))
         return -2;
     return 0;
 }
@@ -137,42 +137,47 @@ static int topologicalSort(struct Graph *graph, List *sorted) {
     return 0;
 }
 
-int getStronglyConnectedComponents(struct Graph *graph, List *components) {
+static int buildStronglyConnectedComponents(
+    struct Graph *reversed,
+    List *components,
+    List *sort
+) {
     BitArray visited;
-    if (initBitArray(&visited, graph->num_of_nodes)) return -1;
-    struct Graph reversed;
-    if (reverseGraph(graph, &reversed)) {
-        freeBitArray(&visited);
-        return -2;
-    }
-    List topological_sort;
-    int rc = 0;
-    if (topologicalSort(graph, &topological_sort)) {
-        rc = -3;
-        goto end;
-    }
+    if (initBitArray(&visited, reversed->num_of_nodes)) return -1;
     initList(components);
-    while (getListSize(&topological_sort)) {
-        uint64_t *node = topList(&topological_sort, 0);
+    while (getListSize(sort)) {
+        uint64_t *node = topList(sort, 0);
         printSearchLog("getStronglyConnectedComponents. Текущее состояние: %" PRIu64 "\n", *node);
         if (!getBitArrayElement(&visited, *node)) {
             List component;
             initList(&component);
             if (
-                deepFirstSearch(graph, &component, &visited, *node) ||
+                deepFirstSearch(reversed, &component, &visited, *node) ||
                 pushList(components, &component, sizeof(List))
             ) {
                 free(node);
                 clearList(&component);
                 deepClearList(components, (FreeValueFunction)clearList);
-                rc = -5;
-                goto end;
+                freeBitArray(&visited);
+                return -1;
             }
         }
         free(node);
     }
-end:
     freeBitArray(&visited);
+    return 0;
+}
+
+int getStronglyConnectedComponents(struct Graph *graph, List *components) {
+    List sort;
+    if (topologicalSort(graph, &sort)) return -1;
+    struct Graph reversed;
+    if (reverseGraph(graph, &reversed)) {
+        clearList(&sort);
+        return -2;
+    }
+    int rc = buildStronglyConnectedComponents(&reversed, components, &sort) ? -3 : 0;
+    clearList(&sort);
     freeGraph(&reversed);
     return rc;
 }

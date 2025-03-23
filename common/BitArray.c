@@ -33,7 +33,8 @@ void freeBitArray(BitArray *array) {
 
 int readArrayFromFile(BitArray *array, uint64_t length, FILE *fp) {
     for (uint64_t i = 0; i < length; ++i) {
-        switch (fgetc(fp)) {
+        int c = fgetc(fp);
+        switch (c) {
             case '1':
                 setBitArrayElement(array, i, 1);
                 break;
@@ -43,9 +44,11 @@ int readArrayFromFile(BitArray *array, uint64_t length, FILE *fp) {
             case ' ':
             case '\t':
             case '\n':
+            case '\r':
                 --i;
                 break;
             default:
+                printf("Ошибка при чтении файла. Получен символ %d.\n", c);
                 return -1;
         }
     }

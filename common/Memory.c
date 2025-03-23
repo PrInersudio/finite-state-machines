@@ -17,7 +17,7 @@ uint64_t hashIOTuple(struct IOTuple *io) {
 }
 
 uint8_t compareIOTuples(struct IOTuple *io1, struct IOTuple *io2) {
-    return 
+    uint8_t rc = 
         (
             io1->compareInputs ?
             deepCompareLists(
@@ -36,19 +36,15 @@ uint8_t compareIOTuples(struct IOTuple *io1, struct IOTuple *io2) {
             ) :
             compareLists(io1->output_sequence, io2->output_sequence)
         );
+    return rc;
 }
 
 struct IOTuple *newIOTuple(
-    size_t input_size,
-    size_t output_size,
-    Hash hashInput,
-    Hash hashOutput,
-    ValueComparator compareInputs,
-    ValueComparator compareOutputs,
-    FreeValueFunction freeInput,
-    FreeValueFunction freeOutput,
-    PrintValue printInput,
-    PrintValue printOutput
+    size_t input_size, size_t output_size,
+    Hash hashInput, Hash hashOutput,
+    ValueComparator compareInputs, ValueComparator compareOutputs,
+    FreeValueFunction freeInput, FreeValueFunction freeOutput,
+    PrintValue printInput, PrintValue printOutput
 ) {
     struct IOTuple *io = malloc(sizeof(struct IOTuple));
     if (!io) return NULL;
@@ -57,14 +53,18 @@ struct IOTuple *newIOTuple(
         free(io);
         return NULL;
     }
+    initList(io->input_sequence);
     io->output_sequence = malloc(sizeof(List));
     if (!io->output_sequence) {
         free(io->input_sequence);
         free(io);
         return NULL;
     }
+    initList(io->output_sequence);
     io->input_size = input_size;
     io->output_size = output_size;
+    io->hashInput = hashInput;
+    io->hashOutput =hashOutput;
     io->compareInputs = compareInputs;
     io->compareOutputs = compareOutputs;
     io->freeInput = freeInput;
@@ -134,7 +134,13 @@ struct IOTuple *copyIOTuple(struct IOTuple *src) {
     dst->freeOutput = src->freeOutput;
     dst->printInput = src->printInput;
     dst->printOutput = src->printOutput;
+    dst->hashInput = src->hashInput;
+    dst->hashOutput = src->hashOutput;
     return dst;
+}
+
+List *getIOTupleInputSequence(struct IOTuple *io) {
+    return io->input_sequence;
 }
 
 void printIOTuple(struct IOTuple *io) {
@@ -144,7 +150,8 @@ void printIOTuple(struct IOTuple *io) {
     printList(io->output_sequence, io->printOutput);
 }
 
-struct Trace *newTrace(
+int initTrace(
+    struct Trace *trace,
     size_t input_size,
     size_t output_size,
     Hash hashInput,
@@ -157,8 +164,6 @@ struct Trace *newTrace(
     PrintInput printOutput,
     FreeValueFunction freeState
 ) {
-    struct Trace *trace = malloc(sizeof(struct Trace));
-    if (!trace) return NULL;
     trace->io = newIOTuple(
         input_size, output_size,
         hashInput, hashOutput,
@@ -166,13 +171,11 @@ struct Trace *newTrace(
         freeInput, freeOutput,
         printInput, printOutput
     );
-    if (!trace->io) {
-        free(trace);
-        return NULL;
-    }
+    if (!trace->io) return -1;
     trace->final_state = NULL;
     trace->freeState = freeState;
-    return trace;
+    trace->state_size = 0;
+    return 0;
 }
 
 void freeTrace(struct Trace *trace) {
@@ -181,9 +184,8 @@ void freeTrace(struct Trace *trace) {
         free(trace->io);
     }
     if (trace->final_state) {
-        if (trace->freeState)
-            trace->freeState(trace->final_state); 
-        free(trace->final_state);
+        if (trace->freeState) trace->freeState(trace->final_state); 
+        else free(trace->final_state);
     }
 }
 
@@ -218,6 +220,7 @@ int setTraceFinalState(struct Trace *trace, void *state, size_t state_size, uint
             break;
         }
     trace->final_state = new_state;
+    trace->state_size = state_size;
     return 0;
 }
 
@@ -225,12 +228,12 @@ List **newTraces(uint64_t num_of_states) {
     List **traces = malloc(num_of_states * sizeof(List *));
     if (!traces) return NULL;
     for (uint64_t i = 0; i < num_of_states; ++i) {
-        List *list_of_traces = malloc(sizeof(List));
-        if (!list_of_traces) {
+        traces[i] = malloc(sizeof(List));
+        if (!traces[i]) {
             freeTraces(traces, i);
             return NULL;
         }
-        traces[i] = list_of_traces;
+        initList(traces[i]);
     }
     return traces;
 }
@@ -259,17 +262,18 @@ int pushBackOutputTrace(struct Trace *trace, void *output) {
     return pushBackOutputIOTuple(trace->io, output);
 }
 
-struct Trace *copyTrace(struct Trace *src) {
-    struct Trace *dst = malloc(sizeof(struct Trace));
-    if (!dst) return NULL;
+int copyTrace(struct Trace *dst, struct Trace *src) {
     dst->io = copyIOTuple(src->io);
-    if (!dst->io) {
-        free(dst);
-        return NULL;
+    if (!dst->io) return -1;
+    dst->final_state = malloc(src->state_size);
+    if (!dst->final_state) {
+        freeIOTuple(dst->io);
+        return -2;
     }
-    dst->final_state = src->final_state;
+    memcpy(dst->final_state, src->final_state, src->state_size);
     dst->freeState = src->freeState;
-    return dst;
+    dst->state_size = src->state_size;
+    return 0;
 }
 
 void freeSetsOfIOTuples(Set **sets, uint64_t num_of_states, uint8_t deep) {
@@ -290,7 +294,7 @@ Set **newSetsOfIOTuples(uint64_t num_of_states) {
         if (initSet(
                 set, sizeof(struct IOTuple),
                 (Hash)hashIOTuple, (ValueComparator)compareIOTuples, 
-                (FreeValueFunction)freeIOTuple
+                (FreeValueFunction)freeIOTuple, (PrintValue)printIOTuple
         )) {
             free(set);
             goto err;
@@ -303,13 +307,22 @@ err:
     return NULL;
 }
 
+void printSetsOfIOTuples(Set **sets, uint64_t num_of_states) {
+    for (uint64_t i = 0; i < num_of_states; ++i) {
+        printf("%" PRIu64 ": ", i);
+        printSet(sets[i]);
+        printf("\n");
+    }
+    printf("\n");
+}
+
 int checkMemoryCriteria(Set **sets, uint64_t num_of_states) {
     for (uint64_t i = 0; i < num_of_states - 1; ++i)
         for (uint64_t j = i + 1; j < num_of_states; ++j) {
             Set intersection;
             if (intersectSet(&intersection, sets[i], sets[j]))
                 return -1;
-            uint8_t intersects = !getSetSize(&intersection);
+            uint8_t intersects = getSetSize(&intersection) != 0;
             freeSet(&intersection, 0);
             if (intersects) return 0;
         }
@@ -323,14 +336,17 @@ void printMemory(struct Memory *memory) {
     }
     printf("Память автомата равна %" PRIu64 ".\n", memory->m);
     for (uint64_t i = 0; i < memory->memory_table_size; ++i) {
-        printIOTuple(memory->memory_table[i]);
+        if (memory->memory_table[i]) printIOTuple(memory->memory_table[i]);
         printf("\n");
     }
 }
 
 void freeMemory(struct Memory *memory) {
     for (uint64_t i = 0; i < memory->memory_table_size; ++i) {
-        freeIOTuple(memory->memory_table[i]);
+        if (memory->memory_table[i]) {
+            freeIOTuple(memory->memory_table[i]);
+            free(memory->memory_table[i]);
+        }
     }
     free(memory->memory_table);
 }
