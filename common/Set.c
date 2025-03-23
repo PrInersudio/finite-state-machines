@@ -190,7 +190,7 @@ int initSet(
 }
 
 static uint64_t findClosestBiggerPrime(uint64_t number) {
-    fprintf(stderr, "findClosestBiggerPrime1 %lu\n", number);
+    //fprintf(stderr, "findClosestBiggerPrime1 %lu\n", number);
     if (number <= 2) return 2;
     if (number % 2 == 0) ++number;
     uint8_t divider_found;
@@ -204,7 +204,7 @@ static uint64_t findClosestBiggerPrime(uint64_t number) {
                 break;
             }
     } while(divider_found);
-    fprintf(stderr, "findClosestBiggerPrime2 %lu\n", number);
+    //fprintf(stderr, "findClosestBiggerPrime2 %lu\n", number);
     return number;
 }
 
@@ -215,14 +215,14 @@ static double loadFactor(Set *set) {
 static int rehash(Set *set) {
     uint64_t new_set_size = set->size;
     while (loadFactor(set) > MAX_LOAD_FACTOR) {
-        fprintf(stderr, "rehash %lu %lu %f\n", set->size, getNumOfBuckets(set->buckets), loadFactor(set));
+        //fprintf(stderr, "rehash %lu %lu %f\n", set->size, getNumOfBuckets(set->buckets), loadFactor(set));
         new_set_size = 0;
         uint64_t new_num_of_buckets = findClosestBiggerPrime(
             2 * getNumOfBuckets(set->buckets) + 1
         );
-        fprintf(stderr, "rehash1 %lu\n", new_set_size);
+        //fprintf(stderr, "rehash1 %lu\n", new_set_size);
         struct Buckets *new_buckets = rehashBuckets(set->buckets, new_num_of_buckets, &new_set_size);
-        fprintf(stderr, "rehash2 %lu\n", new_set_size);
+        //fprintf(stderr, "rehash2 %lu\n", new_set_size);
         if (!new_buckets) return -1;
         freeBuckets(set->buckets, 0);
         set->buckets = new_buckets;

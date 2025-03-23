@@ -264,101 +264,72 @@ int shiftRegisterToGraph(struct ShiftRegister *reg, struct Graph *graph) {
     return 0;
 }
 
-void printGF2(uint8_t *element) {
-    printf("%" PRIu8 "", *element);
-}
-
 static int initTraceShiftRegister(
     struct ShiftRegister *reg,
     uint32_t state, uint8_t input,
-    List *state_traces
+    List *state_traces, uint64_t upper_bound
 ) {
     struct Trace trace;
-    if (initTrace(
-        &trace, sizeof(uint8_t), sizeof(uint8_t),
-        NULL, NULL, NULL, NULL, NULL, NULL,
-        (PrintValue)printGF2, (PrintValue)printGF2, NULL
-    )) return -1;
-    uint32_t new_state = getStateFunctionValue(reg, state, input);
-    uint8_t output = getOutputFunctionValue(reg, state, input);
-    if (
-        setTraceFinalState(&trace, &new_state, sizeof(uint32_t), 0) ||
-        pushInputTrace(&trace, &input) ||
-        pushOutputTrace(&trace, &output) ||
-        pushList(state_traces, &trace, sizeof(struct Trace))
-    ) {
+    if (initTrace(&trace, upper_bound)) return -1;
+    updateTrace(
+        &trace, input, 
+        getOutputFunctionValue(reg, state, input),
+        getStateFunctionValue(reg, state, input)
+    );
+    if (pushList(state_traces, &trace, sizeof(struct Trace))) {
         freeTrace(&trace);
         return -1;
     }
     return 0;
 }
 
-static List **initTracesShiftRegister(struct ShiftRegister *reg) {
+static List **initTracesShiftRegister(struct ShiftRegister *reg, uint64_t upper_bound) {
     List **traces = newTraces((uint64_t)1 << reg->length);
     if (!traces) return NULL;
     for (uint32_t state = 0; state <= ((uint32_t)1 << reg->length) - 1; ++state)
         for (uint8_t input = 0; input < 2; ++input) {
             if (initTraceShiftRegister(
-                reg, state, input, traces[state]
+                reg, state, input, traces[state], upper_bound
             )) goto err;
         }
     return traces;
 err:
-    fprintf(stderr, "4\n");
     freeTraces(traces, (uint64_t)1 << reg->length);
     return NULL;
 }
 
-static int updateTrace(
-    struct ShiftRegister *reg, struct Trace *old,
-    uint32_t state, uint8_t input,
-    List **new_traces
-) {
-    struct Trace new;
-    if (copyTrace(&new, old)) return -1;
-    uint8_t output = getOutputFunctionValue(reg, state, input);
-    if (
-        pushInputTrace(&new, &input) ||
-        pushOutputTrace(&new, &output) ||
-        pushList(new_traces[state], &new, sizeof(struct Trace))
-    ) {
-        freeTrace(&new);
-        return -2;
+static int updateTraces(struct ShiftRegister *reg, List **traces) {
+    for (uint32_t state = 0; state <= ((uint32_t)1 << reg->length) - 1; ++state) {
+        if (!getListSize(traces[state])) continue;
+        List new_traces;
+        initList(&new_traces);
+        struct ListIterator it;
+        setListIteratorNode(&it, getListHead(traces[state]));
+        do {
+            struct Trace *trace1 = getListIteratorValue(&it);
+            struct Trace trace2;
+            struct Trace *current_traces[2];
+            if (copyTrace(&trace2, trace1)) return -1;
+            current_traces[0] = trace1;
+            current_traces[1] = &trace2;
+            for (uint8_t input = 0; input < 2; ++input)
+                updateTrace(
+                    current_traces[input], input,
+                    getOutputFunctionValue(reg, getTraceFinalState(current_traces[input]), input),
+                    getStateFunctionValue(reg, getTraceFinalState(current_traces[input]), input)
+                );
+            if (pushList(&new_traces, &trace2, sizeof(struct Trace))) {
+                freeTrace(&trace2);
+                return -2;
+            }
+            incListIterator(&it);
+        } while (!compareListIteratorNode(&it, getListHead(traces[state])));
+        transfer(&new_traces, traces[state]);
     }
-    return 0;          
+    return 0;
 }
 
-static List **updateTraces(struct ShiftRegister *reg, List **traces) {
-    uint8_t err = 0;
-    List **new_traces = newTraces((uint64_t)1 << reg->length);
-    if (!new_traces) goto end;
-    for (uint32_t state = 0; state <= ((uint32_t)1 << reg->length) - 1; ++state)
-        for (uint8_t input = 0; input < 2; ++input) {
-            uint32_t next_state = getStateFunctionValue(reg, state, input);
-            if (!getListSize(traces[next_state])) continue;
-            struct ListIterator it;
-            setListIteratorNode(&it, getListHead(traces[next_state]));
-            do {
-                if (updateTrace(
-                        reg, getListIteratorValue(&it),
-                        state, input, new_traces
-                    )) {
-                    err = 1;
-                    goto end;
-                }
-                incListIterator(&it);
-            } while (!compareListIteratorNode(&it, getListHead(traces[next_state])));
-        }
-end:
-    freeTraces(traces, (uint64_t)1 << reg->length);
-    if (!err) return new_traces;
-    else {
-        freeTraces(new_traces, (uint64_t)1 << reg->length);
-        return NULL;
-    }
-}
-
-Set **getSetsOfIOTuplesFromTraces(List **traces, uint64_t num_of_states) {
+static Set **getSetsOfIOTuplesFromTraces(List **traces, uint64_t num_of_states) {
     Set **sets = newSetsOfIOTuples(num_of_states);
     if (!sets) return NULL;
     for (uint32_t state = 0; state <= (uint32_t)(num_of_states - 1); ++state) {
@@ -367,8 +338,8 @@ Set **getSetsOfIOTuplesFromTraces(List **traces, uint64_t num_of_states) {
         setListIteratorNode(&it, getListHead(traces[state]));
         do {
             struct Trace *trace = getListIteratorValue(&it);
-            if (pushSet(sets[*(uint32_t *)getTraceFinalState(trace)], getTraceIOTuple(trace))) {
-                freeSetsOfIOTuples(sets, num_of_states, 0);
+            if (pushSet(sets[getTraceFinalState(trace)], getTraceIOTuple(trace))) {
+                freeSetsOfIOTuples(sets, num_of_states);
                 return NULL;
             }
             incListIterator(&it);
@@ -388,45 +359,21 @@ static int getMemoryUpperBound(struct ShiftRegister *reg, uint64_t *upper_bound)
     return 0;
 }
 
-static uint64_t listOFBitsToNum(List *bits) {
-    if (!getListSize(bits)) return 0;
-    uint64_t num = 0;
-    struct ListIterator it;
-    setListIteratorNode(&it, getListHead(bits));
-    do {
-        num = (num << 1) | *(uint8_t *)getListIteratorValue(&it);
-        incListIterator(&it);
-    } while(!compareListIteratorNode(&it, getListHead(bits)));
-    return num;
-}
-
-static int traceToMemory(
+static void traceToMemory(
     struct ShiftRegister *reg,
     struct Memory* memory,
     struct Trace *trace
 ) {
-    struct IOTuple *io[2];
-    io[0] = popTraceIOTuple(trace);
-    io[1] = copyIOTuple(io[0]);
-    if (!io[1]) {
-        freeIOTuple(io[0]); free(io[0]);
-        return -1;
+    struct IOTuple *io = popTraceIOTuple(trace);
+    uint64_t index = getMemoryTableIndexFromIOTuple(io);
+    printf("traceToMemory index = %lu, io: ", index); 
+    printIOTuple(io);
+    printf("\n");
+    if (!memory->memory_table[index]) memory->memory_table[index] = io;
+    else {
+        printf("traceToMemory error index = %lu\n", index); 
+        freeIOTuple(io); free(io);
     }
-    uint32_t *final_state = getTraceFinalState(trace);
-    for (uint8_t input = 0; input < 2; ++input) {
-        uint8_t output = getOutputFunctionValue(reg, *final_state, input);
-        if (
-            pushBackInputIOTuple(io[input], &input) ||
-            pushBackOutputIOTuple(io[input], &output)
-        ) {
-            for (uint8_t j = input; j < 2; ++j) { freeIOTuple(io[j]); free(io[j]); }
-            return -2;
-        }
-        uint64_t index = listOFBitsToNum(getIOTupleInputSequence(io[input]));
-        if (!memory->memory_table[index]) memory->memory_table[index] = io[input];
-        else { freeIOTuple(io[input]); free(io[input]); }
-    }
-    return 0;
 }
 
 static int initMemoryFromTraces(
@@ -441,20 +388,15 @@ static int initMemoryFromTraces(
     }
     memory->infinite = 0;
     memory->m = m;
-    memory->memory_table_size = (uint64_t)1 << (m + 1);
+    memory->memory_table_size = (uint64_t)1 << (2 * m + 1);
     memory->memory_table = malloc(memory->memory_table_size * sizeof(struct IOTuple *));
     if (!memory->memory_table) return -1;
     memset(memory->memory_table, 0, memory->memory_table_size * sizeof(struct IOTuple *));
     for (uint32_t state = 0; state <= (uint32_t)(((uint32_t)1 << reg->length) - 1 - 1); ++state)
         while (getListSize(traces[state])) {
             struct Trace *trace = topList(traces[state], 0);
-            uint8_t err = traceToMemory(reg, memory, trace);
-            freeTrace(trace);
-            free(trace);
-            if (err) {
-                freeMemory(memory);
-                return -2;
-            }
+            traceToMemory(reg, memory, trace);
+            freeTrace(trace); free(trace);
         }
     return 0;
 }
@@ -462,7 +404,7 @@ static int initMemoryFromTraces(
 int getMemoryShiftRegister(struct Memory* memory, struct ShiftRegister *reg) {
     uint64_t upper_bound;
     if (getMemoryUpperBound(reg, &upper_bound)) return -1;
-    List **traces = initTracesShiftRegister(reg);
+    List **traces = initTracesShiftRegister(reg, upper_bound + 1);
     if (!traces) return -2;
     uint64_t m;
     int rc = 0;
@@ -472,14 +414,13 @@ int getMemoryShiftRegister(struct Memory* memory, struct ShiftRegister *reg) {
         printSetsOfIOTuples(sets, num_of_states);
         if (!sets) { rc = -3; goto end; }
         int criteria = checkMemoryCriteria(sets, num_of_states);
-        freeSetsOfIOTuples(sets, num_of_states, 0);
+        freeSetsOfIOTuples(sets, num_of_states);
         if (criteria < 0) { rc = -4; goto end; }
-        if (criteria == 1) break;
-        traces = updateTraces(reg, traces);
-        if (!traces) return -5;
+        if (updateTraces(reg, traces)) { rc = -5; goto end; }
+        if (criteria == 1) { ++m; break; }
     }
     if (initMemoryFromTraces(reg, memory, traces, m, (m > upper_bound)))
-        rc = -5;
+        rc = -6;
 end:
     freeTraces(traces, num_of_states);
     return rc;

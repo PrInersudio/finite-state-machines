@@ -24,6 +24,4 @@ int minimizeShiftRegister(struct Minimized *minimized, struct ShiftRegister* ori
 void printState(uint32_t *state);
 int getMemoryShiftRegister(struct Memory* memory, struct ShiftRegister *reg);
 
-void printGF2(uint8_t *element);
-
 #endif

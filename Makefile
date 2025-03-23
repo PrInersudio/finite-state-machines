@@ -12,11 +12,13 @@ SR_DIR = Регистр_сдвига
 COMMON_SRCS = $(wildcard $(COMMON_DIR)/*.c)
 COMMON_OBJS = $(COMMON_SRCS:.c=.o)
 
+SR_SRCS = $(SR_DIR)/ShiftRegister.c $(SR_DIR)/Memory.c
+
 # Исходные файлы для каждой задачи
-SR_TASK1_SRCS = $(SR_DIR)/task1.c $(SR_DIR)/ShiftRegister.c
-SR_TASK2_SRCS = $(SR_DIR)/task2.c $(SR_DIR)/ShiftRegister.c
-SR_TASK3_SRCS = $(SR_DIR)/task3.c $(SR_DIR)/ShiftRegister.c
-SR_TASK4_SRCS = $(SR_DIR)/task4.c $(SR_DIR)/ShiftRegister.c
+SR_TASK1_SRCS = $(SR_DIR)/task1.c $(SR_SRCS)
+SR_TASK2_SRCS = $(SR_DIR)/task2.c $(SR_SRCS)
+SR_TASK3_SRCS = $(SR_DIR)/task3.c $(SR_SRCS)
+SR_TASK4_SRCS = $(SR_DIR)/task4.c $(SR_SRCS)
 
 TARGETS = shift_register_task1.exe shift_register_task2.exe shift_register_task3.exe shift_register_task4.exe
 

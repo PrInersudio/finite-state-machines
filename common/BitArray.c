@@ -1,11 +1,11 @@
 #include "BitArray.h"
 #include <stdlib.h>
+#include "Hash.h"
 
 int initBitArray(BitArray *array, uint64_t length) {
-    if (!(array->bucket = malloc((length + 7) / 8 * sizeof(uint8_t))))
+    if (!(array->bucket = malloc((length + 7) / 8)))
         return -1;
-    for (uint64_t i = 0; i < (length + 7) / 8; ++i)
-        array->bucket[i] = 0;
+    memset(array->bucket, 0, (length + 7) / 8);
     array->length = length;
     return 0;
 }
@@ -52,5 +52,20 @@ int readArrayFromFile(BitArray *array, uint64_t length, FILE *fp) {
                 return -1;
         }
     }
+    return 0;
+}
+
+uint64_t hashBitArray(BitArray *array) {
+    return hashBytes(array->bucket, (array->length + 7) / 8);
+}
+
+uint8_t compareBitArrays(BitArray *first, BitArray *second) {
+    if (first->length != second->length) return 0;
+    return !memcmp(first->bucket, second->bucket, (first->length + 7) / 8);
+}
+
+int copyBitArray(BitArray *dst, BitArray *src) {
+    if (initBitArray(dst, src->length)) return -1;
+    memcpy(dst->bucket, src->bucket, (src->length + 7) / 8);
     return 0;
 }
