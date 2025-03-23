@@ -1,5 +1,6 @@
 **/a.out
 **/*.exe
 **/output.txt
+**/err.txt
 **/*.o
 20
