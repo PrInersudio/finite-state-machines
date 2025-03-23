@@ -3,7 +3,8 @@
 #include <inttypes.h>
 
 uint64_t hashIOTuple(struct IOTuple *io) {
-    return hashBitArray(io->input_sequence) * 31 + hashBitArray(io->output_sequence);
+    uint64_t hash = hashBitArray(io->input_sequence) * 31 + hashBitArray(io->output_sequence);
+    return hash;
 }
 
 uint8_t compareIOTuples(struct IOTuple *io1, struct IOTuple *io2) {

@@ -366,14 +366,7 @@ static void traceToMemory(
 ) {
     struct IOTuple *io = popTraceIOTuple(trace);
     uint64_t index = getMemoryTableIndexFromIOTuple(io);
-    printf("traceToMemory index = %lu, io: ", index); 
-    printIOTuple(io);
-    printf("\n");
-    if (!memory->memory_table[index]) memory->memory_table[index] = io;
-    else {
-        printf("traceToMemory error index = %lu\n", index); 
-        freeIOTuple(io); free(io);
-    }
+    memory->memory_table[index] = io;
 }
 
 static int initMemoryFromTraces(
@@ -391,7 +384,6 @@ static int initMemoryFromTraces(
     memory->memory_table_size = (uint64_t)1 << (2 * m + 1);
     memory->memory_table = malloc(memory->memory_table_size * sizeof(struct IOTuple *));
     if (!memory->memory_table) return -1;
-    memset(memory->memory_table, 0, memory->memory_table_size * sizeof(struct IOTuple *));
     for (uint32_t state = 0; state <= (uint32_t)(((uint32_t)1 << reg->length) - 1 - 1); ++state)
         while (getListSize(traces[state])) {
             struct Trace *trace = topList(traces[state], 0);
@@ -410,8 +402,9 @@ int getMemoryShiftRegister(struct Memory* memory, struct ShiftRegister *reg) {
     int rc = 0;
     uint64_t num_of_states = (uint64_t)1 << reg->length;
     for (m = 0; m <= upper_bound; ++m) {
+        fprintf(stderr, "%" PRIu64 "\n", m);
         Set **sets = getSetsOfIOTuplesFromTraces(traces, num_of_states);
-        printSetsOfIOTuples(sets, num_of_states);
+        //printSetsOfIOTuples(sets, num_of_states);
         if (!sets) { rc = -3; goto end; }
         int criteria = checkMemoryCriteria(sets, num_of_states);
         freeSetsOfIOTuples(sets, num_of_states);

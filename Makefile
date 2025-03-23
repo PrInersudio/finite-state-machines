@@ -2,7 +2,7 @@
 CC = gcc
 
 # Флаги компиляции по умолчанию
-CFLAGS = -Icommon -Wall -O2 -lm
+CFLAGS = -Icommon -Wall -O3 -lm
 
 # Папки с исходными файлами
 COMMON_DIR = common

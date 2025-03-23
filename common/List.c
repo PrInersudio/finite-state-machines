@@ -280,12 +280,9 @@ uint64_t deepHashList(const List *list, Hash hashValue) {
     uint64_t hash = 0;
     struct Node* node = list->head;
     do {
-        fprintf(stderr, "deepHashList %p %p %p %p\n", node, node->value, node->next, hashValue);
         hash += hashValue(getNodeValue(node));
-        fprintf(stderr, "deepHashList 1\n");
         hash *= 31;
         node = getNodeNext(node);
-        fprintf(stderr, "deepHashList 2\n");
     } while(node != list->head);
     return hash;
 }
