@@ -388,30 +388,27 @@ static int countMemory(
 ) {
     for (*memory_size = 1; *memory_size <= upper_bound; ++(*memory_size)) {
         fprintf(stderr, "countMemory memory_size = %" PRIu64 "\n", *memory_size);
-        //printIOSets(*sets, (uint64_t)1 << reg->length);
         int criteria = checkMemoryCriteria(*sets, (uint64_t)1 << reg->length);
         if (criteria < 0) {
             freeIOSets(*sets, (uint64_t)1 << reg->length, 1);
             return -1;
         }
-        if (!(*sets = updateIOSets(reg, *sets))) return -2;
         if (criteria == 1) break;
+        if (!(*sets = updateIOSets(reg, *sets))) return -2;
     }
     return 0;
 }
 
-int getMemoryShiftRegister(struct Memory* memory, struct ShiftRegister *reg) {
+int getMemoryShiftRegister(struct ShiftRegister *reg, uint64_t *memory_size) {
     uint64_t upper_bound;
-    uint64_t memory_size = 0;
+    *memory_size = 0;
     int rc = 0;
     if (getMemoryUpperBound(reg, &upper_bound)) return -1;
+    if (upper_bound > MAX_MEMORY_TRY) upper_bound = MAX_MEMORY_TRY;
     Set **sets = initIOSets(reg, upper_bound + 1);
     if (!sets) return -2;
     if (upper_bound != 0)
-        if (countMemory(reg, upper_bound, &sets, &memory_size)) return -3;
-    rc = initMemory(
-        memory, sets, (uint64_t)1 << reg->length, memory_size, memory_size > upper_bound
-    ) ? -4 : 0;
+        if (countMemory(reg, upper_bound, &sets, memory_size)) return -3;
     freeIOSets(sets, (uint64_t)1 << reg->length, rc != 0);
     return rc;
 }
