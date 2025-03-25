@@ -22,6 +22,6 @@ void freeShiftRegister(struct ShiftRegister* reg);
 int shiftRegisterToGraph(struct ShiftRegister *reg, struct Graph *graph);
 int minimizeShiftRegister(struct Minimized *minimized, struct ShiftRegister* original);
 void printState(uint32_t *state);
-int getMemoryShiftRegister(struct Memory* memory, struct ShiftRegister *reg);
+int getMemoryShiftRegister(struct ShiftRegister *reg, uint64_t *memory_size);
 
 #endif

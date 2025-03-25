@@ -73,3 +73,11 @@ int copyBitArray(BitArray *dst, BitArray *src) {
     memcpy(dst->bucket, src->bucket, (src->length + 7) / 8);
     return 0;
 }
+
+size_t putNBytesOfBitArrayIntoFile(BitArray *array, size_t n, FILE *fp) {
+    return fwrite(array->bucket, 1, n, fp);
+}
+
+size_t getNBytesOfBitArrayFromFile(BitArray *array, size_t n, FILE *fp) {
+    return fread(array->bucket, 1, n, fp);
+}

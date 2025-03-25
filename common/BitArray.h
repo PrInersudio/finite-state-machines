@@ -19,5 +19,7 @@ uint64_t hashBitArray(BitArray *array);
 uint8_t compareBitArrays(BitArray *first, BitArray *second);
 uint8_t compareFirstNBytesOfBitArray(BitArray *first, BitArray *second, size_t n);
 int copyBitArray(BitArray *dst, BitArray *src);
+size_t putNBytesOfBitArrayIntoFile(BitArray *array, size_t n, FILE *fp);
+size_t getNBytesOfBitArrayFromFile(BitArray *array, size_t n, FILE *fp);
 
 #endif

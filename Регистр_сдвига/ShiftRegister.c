@@ -277,34 +277,36 @@ static int getMemoryUpperBound(struct ShiftRegister *reg, uint64_t *upper_bound)
     return 0;
 }
 
-static Set **initIOSets(struct ShiftRegister *reg, uint64_t upper_bound) {
-    Set **sets = newIOSets((uint64_t)1 << reg->length);
-    if (!sets) return NULL;
+static int initIOSets(struct ShiftRegister *reg) {
+    FILE **files = openCacheFiles((uint64_t)1 << reg->length, 1, "wb");
+    if (!files) return -1;
     for (uint32_t state = 0; state <= ((uint32_t)1 << reg->length) - 1; ++state)
         for (uint8_t x = 0; x < 2; ++x) {
             struct IOTuple io;
-            if (initIOTuple(&io, upper_bound)) {
-                freeIOSets(sets, (uint64_t)1 << reg->length, 1);
-                return NULL;
+            if (initIOTuple(&io, 1)) {
+                closeCacheFiles(files, (uint64_t)1 << reg->length);
+                return -2;
             }
             pushIOTuple(&io, x, getOutputFunctionValue(reg, state, x));
-            if (pushSet(sets[getStateFunctionValue(reg, state, x)], &io)) {
+            if (putIOTupleIntoFile(&io, files[getStateFunctionValue(reg, state, x)])) {
                 freeIOTuple(&io);
-                freeIOSets(sets, (uint64_t)1 << reg->length, 1);
-                return NULL;
+                closeCacheFiles(files, (uint64_t)1 << reg->length);
+                return -3;
             }
+            freeIOTuple(&io);
         }
-    return sets;
+    closeCacheFiles(files, (uint64_t)1 << reg->length);
+    return 0;
 }
 
 struct ThreadDataUpdateIOSets {
     struct ShiftRegister *reg;
-    Set **sets;
-    Set **new_sets;
+    FILE **files;
+    uint64_t memory_size;
+    FILE **new_files;
     uint32_t start_state;
     uint32_t end_state;
     atomic_int *error_flag;
-    pthread_mutex_t *mutex;
 };
 
 static void* updateIOSetsThread(void *arg) {
@@ -314,9 +316,14 @@ static void* updateIOSetsThread(void *arg) {
         state <= data->end_state - 1 && atomic_load(data->error_flag) == 0;
         ++state
     ) {
+        Set set;
+        if (getIOSetFromFile(&set, data->files[state], data->memory_size)) {
+            atomic_store(data->error_flag, -1);
+            break;
+        }
         struct SetIterator it;
         for (
-            initSetIterator(data->sets[state], &it);
+            initSetIterator(&set, &it);
             !reachedEndSetIterator(&it) && atomic_load(data->error_flag) == 0;
             incSetIterator(&it)
         ) {
@@ -330,88 +337,78 @@ static void* updateIOSetsThread(void *arg) {
             io[1] = &io1;
             for (uint8_t x = 0; x < 2 && atomic_load(data->error_flag) == 0; ++x) {
                 pushIOTuple(io[x], x, getOutputFunctionValue(data->reg, state, x));
-                pthread_mutex_lock(data->mutex);
-                if (pushSet(data->new_sets[getStateFunctionValue(data->reg, state, x)], io[x])) {
+                if (putIOTupleIntoFile(io[x], data->new_files[getStateFunctionValue(data->reg, state, x)])) {
                     freeIOTuple(&io1);
                     atomic_store(data->error_flag, -1);
                     break;
                 }
-                pthread_mutex_unlock(data->mutex);
             }
         }
+        freeSet(&set, 1);
     }
     return NULL;
 }
 
-static Set **updateIOSets(struct ShiftRegister *reg, Set **sets) {
+static int updateIOSets(struct ShiftRegister *reg, uint64_t memory_size) {
     uint64_t num_states = (uint64_t)1 << reg->length;
+    FILE **files = openCacheFiles(num_states, memory_size, "rb");
+    if (!files) return -1;
+    FILE **new_files = openCacheFiles(num_states, memory_size + 1, "wb");
+    if (!new_files) {
+        closeCacheFiles(files, num_states);
+        return -2;
+    }
     uint64_t NUM_THREADS = num_states < MAX_NUM_THREADS ? num_states : MAX_NUM_THREADS;
-    Set **new_sets = newIOSets(num_states);
-    if (!new_sets) return NULL;
     pthread_t threads[NUM_THREADS];
     struct ThreadDataUpdateIOSets thread_data[NUM_THREADS];
     atomic_int error_flag = ATOMIC_VAR_INIT(0);
-    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
     uint32_t chunk_size = num_states / NUM_THREADS;
     uint32_t remaining = num_states % NUM_THREADS;
     uint32_t start_state = 0;
     for (int t = 0; t < NUM_THREADS; ++t) {
         uint32_t end_state = start_state + chunk_size + (t < remaining ? 1 : 0);
         thread_data[t].reg = reg;
-        thread_data[t].sets = sets;
-        thread_data[t].new_sets = new_sets;
+        thread_data[t].files = files;
+        thread_data[t].memory_size = memory_size;
+        thread_data[t].new_files = new_files;
         thread_data[t].start_state = start_state;
         thread_data[t].end_state = end_state;
         thread_data[t].error_flag = &error_flag;
-        thread_data[t].mutex = &mutex;
         pthread_create(&threads[t], NULL, updateIOSetsThread, &thread_data[t]);
         start_state = end_state;
     }
     for (int t = 0; t < NUM_THREADS; ++t) {
         pthread_join(threads[t], NULL);
     }
-    pthread_mutex_destroy(&mutex);
-    if (atomic_load(&error_flag)) {
-        freeIOSets(new_sets, num_states, 0);
-        freeIOSets(sets, num_states, 1);
-        return NULL;
-    }
-    freeIOSets(sets, num_states, 0);
-    return new_sets;
+    closeCacheFiles(files, num_states);
+    closeCacheFiles(new_files, num_states);
+    return atomic_load(&error_flag) ? -3 : 0;
 }
 
 static int countMemory(
     struct ShiftRegister *reg,
     uint64_t upper_bound,
-    Set ***sets,
     uint64_t *memory_size
 ) {
+    if (initIOSets(reg)) return -1;
     for (*memory_size = 1; *memory_size <= upper_bound; ++(*memory_size)) {
         fprintf(stderr, "countMemory memory_size = %" PRIu64 "\n", *memory_size);
-        //printIOSets(*sets, (uint64_t)1 << reg->length);
-        int criteria = checkMemoryCriteria(*sets, (uint64_t)1 << reg->length);
-        if (criteria < 0) {
-            freeIOSets(*sets, (uint64_t)1 << reg->length, 1);
-            return -1;
+        int criteria = checkMemoryCriteria((uint64_t)1 << reg->length, *memory_size);
+        if (criteria < 0 || updateIOSets(reg, *memory_size)) {
+            deleteCacheFiles();
+            return -2;
         }
-        if (!(*sets = updateIOSets(reg, *sets))) return -2;
         if (criteria == 1) break;
     }
     return 0;
 }
 
-int getMemoryShiftRegister(struct Memory* memory, struct ShiftRegister *reg) {
+int getMemoryShiftRegister(struct ShiftRegister *reg, uint64_t *memory_size) {
     uint64_t upper_bound;
-    uint64_t memory_size = 0;
-    int rc = 0;
     if (getMemoryUpperBound(reg, &upper_bound)) return -1;
-    Set **sets = initIOSets(reg, upper_bound + 1);
-    if (!sets) return -2;
-    if (upper_bound != 0)
-        if (countMemory(reg, upper_bound, &sets, &memory_size)) return -3;
-    rc = initMemory(
-        memory, sets, (uint64_t)1 << reg->length, memory_size, memory_size > upper_bound
-    ) ? -4 : 0;
-    freeIOSets(sets, (uint64_t)1 << reg->length, rc != 0);
-    return rc;
+    *memory_size = 0;
+    if (upper_bound == 0) return 0;
+    if (countMemory(reg, upper_bound, memory_size)) return -2;
+    if (*memory_size > upper_bound) return 0;
+    return 1;
 }
