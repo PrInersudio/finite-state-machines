@@ -32,4 +32,18 @@ int intersectSet(Set *result, Set *first, Set *second);
 int subtract(Set *difference, Set *minuend, Set *subtrahend);
 void printSet(Set *set);
 
+struct BucketsIterator {
+    struct ListIterator it;
+    uint64_t index_of_list;
+};
+
+struct SetIterator {
+    struct BucketsIterator it;
+    Set *set;
+};
+void initSetIterator(Set *set, struct SetIterator *it);
+uint8_t reachedEndSetIterator(struct SetIterator *it);
+void incSetIterator(struct SetIterator *it);
+void *getSetIteratorValue(struct SetIterator *it);
+
 #endif

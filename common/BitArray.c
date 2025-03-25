@@ -64,6 +64,10 @@ uint8_t compareBitArrays(BitArray *first, BitArray *second) {
     return !memcmp(first->bucket, second->bucket, (first->length + 7) / 8);
 }
 
+uint8_t compareFirstNBytesOfBitArray(BitArray *first, BitArray *second, size_t n) {
+    return !memcmp(first->bucket, second->bucket, n);
+}
+
 int copyBitArray(BitArray *dst, BitArray *src) {
     if (initBitArray(dst, src->length)) return -1;
     memcpy(dst->bucket, src->bucket, (src->length + 7) / 8);

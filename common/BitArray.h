@@ -17,6 +17,7 @@ void freeBitArray(BitArray *array);
 int readArrayFromFile(BitArray *array, uint64_t length, FILE *fp);
 uint64_t hashBitArray(BitArray *array);
 uint8_t compareBitArrays(BitArray *first, BitArray *second);
+uint8_t compareFirstNBytesOfBitArray(BitArray *first, BitArray *second, size_t n);
 int copyBitArray(BitArray *dst, BitArray *src);
 
 #endif

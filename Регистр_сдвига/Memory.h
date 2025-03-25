@@ -13,43 +13,30 @@ struct IOTuple {
 
 uint64_t hashIOTuple(struct IOTuple *io);
 uint8_t compareIOTuples(struct IOTuple *io1, struct IOTuple *io2);
-struct IOTuple *newIOTuple(uint64_t upper_bound);
+int initIOTuple(struct IOTuple *io, uint64_t upper_bound);
 void freeIOTuple(struct IOTuple *io);
 void pushIOTuple(struct IOTuple *io, uint8_t input, uint8_t output);
-struct IOTuple *copyIOTuple(struct IOTuple *src);
+int copyIOTuple(struct IOTuple *dst, struct IOTuple *src);
 void printIOTuple(struct IOTuple *io);
 
-struct Trace {
-    struct IOTuple *io;
-    uint32_t final_state;
-};
-
-int initTrace(struct Trace *trace, uint64_t upper_bound);
-void freeTrace(struct Trace *trace);
-uint32_t getTraceFinalState(struct Trace *trace);
-struct IOTuple *getTraceIOTuple(struct Trace *trace);
-struct IOTuple *popTraceIOTuple(struct Trace *trace);
-void setTraceFinalState(struct Trace *trace, uint32_t state);
-void updateTrace(struct Trace *trace, uint8_t input, uint8_t output, uint8_t new_state);
-int copyTrace(struct Trace *dst, struct Trace *src);
-
-List **newTraces(uint64_t num_of_states);
-void freeTraces(List **traces, uint64_t num_of_states);
-
-void freeSetsOfIOTuples(Set **sets, uint64_t num_of_states);
-Set **newSetsOfIOTuples(uint64_t num_of_states);
-void printSetsOfIOTuples(Set **sets, uint64_t num_of_states);
+void freeIOSets(Set **sets, uint64_t num_of_states, uint8_t deep);
+Set **newIOSets(uint64_t num_of_states);
+void printIOSets(Set **sets, uint64_t num_of_states);
 int checkMemoryCriteria(Set **sets, uint64_t num_of_states);
 
 struct Memory {
     struct IOTuple **memory_table;
-    uint64_t memory_table_size;
-    uint64_t m;
+    uint64_t memory_size;
     uint8_t infinite;
 };
 
 void printMemory(struct Memory *memory);
 void freeMemory(struct Memory *memory);
-uint64_t getMemoryTableIndexFromIOTuple(struct IOTuple *io);
-
+int initMemory(
+    struct Memory* memory,
+    Set **io_sets,
+    uint64_t num_of_states,
+    uint64_t memory_size,
+    uint8_t infinite
+);
 #endif

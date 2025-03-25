@@ -135,11 +135,6 @@ static struct Buckets *rehashBuckets(
     return new;
 }
 
-struct BucketsIterator {
-    struct ListIterator it;
-    uint64_t index_of_list;
-};
-
 static void initBucketsIterator(struct Buckets *buckets, struct BucketsIterator *it) {
     uint64_t i;
     for (i = 0; (i < buckets->num_of_buckets) && !getListSize(buckets->buckets[i]); ++i);
@@ -211,7 +206,7 @@ static double loadFactor(Set *set) {
 
 static int rehash(Set *set) {
     uint64_t new_set_size = set->size;
-    while (loadFactor(set) > MAX_LOAD_FACTOR) {
+    if (loadFactor(set) > MAX_LOAD_FACTOR) {
         new_set_size = 0;
         uint64_t new_num_of_buckets = findClosestBiggerPrime(
             2 * getNumOfBuckets(set->buckets) + 1
@@ -339,4 +334,21 @@ void printSet(Set *set) {
         printf(" ");
     }
     printf("}");
+}
+
+void initSetIterator(Set *set, struct SetIterator *it) {
+    initBucketsIterator(set->buckets, &it->it);
+    it->set = set;
+}
+
+uint8_t reachedEndSetIterator(struct SetIterator *it) {
+    return reachedEndBucketsIterator(it->set->buckets, &it->it);
+}
+
+void incSetIterator(struct SetIterator *it) {
+    incBucketsIterator(it->set->buckets, &it->it);
+}
+
+void *getSetIteratorValue(struct SetIterator *it) {
+    return getBucketsIteratorValue(&it->it);
 }
