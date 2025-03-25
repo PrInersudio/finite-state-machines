@@ -5,6 +5,8 @@
 #include "Set.h"
 #include "BitArray.h"
 
+#define MAX_NUM_THREADS 16
+
 struct IOTuple {
     BitArray *input_sequence;
     BitArray *output_sequence;

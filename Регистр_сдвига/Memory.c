@@ -1,6 +1,8 @@
 #include "Memory.h"
 #include <stdlib.h>
 #include <inttypes.h>
+#include <pthread.h>
+#include <stdatomic.h>
 
 uint64_t hashIOTuple(struct IOTuple *io) {
     uint64_t hash = hashBitArray(io->input_sequence) * 31 + hashBitArray(io->output_sequence);
@@ -116,17 +118,64 @@ void printIOSets(Set **sets, uint64_t num_of_states) {
     printf("\n");
 }
 
-int checkMemoryCriteria(Set **sets, uint64_t num_of_states) {
-    for (uint64_t i = 0; i < num_of_states - 1; ++i)
-        for (uint64_t j = i + 1; j < num_of_states; ++j) {
+struct MemoryCriteriaThreadData {
+    Set **sets;
+    uint64_t num_of_states;
+    uint64_t start_i;
+    uint64_t end_i;
+    int result;
+    atomic_int* global_flag;
+};
+
+void* checkMemoryCriteriaThread(void* arg) {
+    struct MemoryCriteriaThreadData *data = arg;
+    data->result = 1;
+    for (uint64_t i = data->start_i; i < data->end_i && atomic_load(data->global_flag) == 1; ++i) {
+        for (uint64_t j = i + 1; j < data->num_of_states && atomic_load(data->global_flag) == 1; ++j) {
             Set intersection;
-            if (intersectSet(&intersection, sets[i], sets[j]))
-                return -1;
+            if (intersectSet(&intersection, data->sets[i], data->sets[j])) {
+                atomic_store(data->global_flag, -1);
+                data->result = -1;
+                return NULL;
+            }
             uint8_t intersects = getSetSize(&intersection) != 0;
             freeSet(&intersection, 0);
-            if (intersects) return 0;
+            if (intersects) {
+                atomic_store(data->global_flag, 0);
+                data->result = 0;
+                return NULL;
+            }
         }
-    return 1;
+    }
+    return NULL;
+}
+
+int checkMemoryCriteria(Set **sets, uint64_t num_of_states) {
+    uint64_t NUM_THREADS = num_of_states - 1 < MAX_NUM_THREADS ? num_of_states - 1 : MAX_NUM_THREADS;
+    pthread_t threads[NUM_THREADS];
+    struct MemoryCriteriaThreadData thread_data[NUM_THREADS];
+    atomic_int global_flag = ATOMIC_VAR_INIT(1);
+    uint64_t chunk_size = (num_of_states - 1) / NUM_THREADS;
+    uint64_t remaining = (num_of_states - 1) % NUM_THREADS;
+    uint64_t start_i = 0;
+    for (int t = 0; t < NUM_THREADS; ++t) {
+        uint64_t end_i = start_i + chunk_size + (t < remaining ? 1 : 0);
+        if (end_i > num_of_states - 1) end_i = num_of_states - 1;
+        thread_data[t].sets = sets;
+        thread_data[t].num_of_states = num_of_states;
+        thread_data[t].start_i = start_i;
+        thread_data[t].end_i = end_i;
+        thread_data[t].global_flag = &global_flag;
+        pthread_create(&threads[t], NULL, checkMemoryCriteriaThread, &thread_data[t]);
+        start_i = end_i;
+    }
+    int final_result = 1;
+    for (int t = 0; t < NUM_THREADS; ++t) {
+        pthread_join(threads[t], NULL);
+        if (thread_data[t].result == -1)  final_result = -1;
+        else if (thread_data[t].result == 0 && final_result != -1) final_result = 0;
+    }
+    return final_result;
 }
 
 void printMemory(struct Memory *memory) {

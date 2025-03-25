@@ -1,6 +1,8 @@
 #include "ShiftRegister.h"
 #include <inttypes.h>
 #include <stdlib.h>
+#include <pthread.h>
+#include <stdatomic.h>
 
 int initShiftRegisterFromFile(struct ShiftRegister* reg, char* settings_file) {
     FILE *fp = fopen(settings_file, "r");
@@ -295,46 +297,87 @@ static Set **initIOSets(struct ShiftRegister *reg, uint64_t upper_bound) {
     return sets;
 }
 
-static int updateIO(
-    struct ShiftRegister *reg,
-    Set **new_sets,
-    uint32_t state,
-    struct IOTuple *io0
-) {
-    struct IOTuple *io[2];
-    io[0] = io0;
-    struct IOTuple io1;
-    if (copyIOTuple(&io1, io[0])) return -1;
-    io[1] = &io1;
-    for (uint8_t x = 0; x < 2; ++x) {
-        pushIOTuple(io[x], x, getOutputFunctionValue(reg, state, x));
-        if (pushSet(new_sets[getStateFunctionValue(reg, state, x)], io[x])) {
-            freeIOTuple(&io1);
-            return -1;
-        }
-    }
-    return 0;
-}
+struct ThreadDataUpdateIOSets {
+    struct ShiftRegister *reg;
+    Set **sets;
+    Set **new_sets;
+    uint32_t start_state;
+    uint32_t end_state;
+    atomic_int *error_flag;
+    pthread_mutex_t *mutex;
+};
 
-static Set **updateIOSets(struct ShiftRegister *reg, Set **sets) {
-    Set **new_sets = newIOSets((uint64_t)1 << reg->length);
-    if (!new_sets) return NULL;
-    for (uint32_t state = 0; state <= ((uint32_t)1 << reg->length) - 1; ++state) {
+static void* updateIOSetsThread(void *arg) {
+    struct ThreadDataUpdateIOSets *data = arg;
+    for (
+        uint32_t state = data->start_state;
+        state <= data->end_state - 1 && atomic_load(data->error_flag) == 0;
+        ++state
+    ) {
         struct SetIterator it;
         for (
-            initSetIterator(sets[state], &it);
-            !reachedEndSetIterator(&it);
+            initSetIterator(data->sets[state], &it);
+            !reachedEndSetIterator(&it) && atomic_load(data->error_flag) == 0;
             incSetIterator(&it)
         ) {
-            if (updateIO(reg, new_sets, state, getSetIteratorValue(&it))) {
-                freeIOSets(new_sets, (uint64_t)1 << reg->length, 0);
-                freeIOSets(sets, (uint64_t)1 << reg->length, 1);
-                return NULL;
+            struct IOTuple *io[2];
+            io[0] = getSetIteratorValue(&it);
+            struct IOTuple io1;
+            if (copyIOTuple(&io1, io[0])) {
+                atomic_store(data->error_flag, -1);
+                break;
+            }
+            io[1] = &io1;
+            for (uint8_t x = 0; x < 2 && atomic_load(data->error_flag) == 0; ++x) {
+                pushIOTuple(io[x], x, getOutputFunctionValue(data->reg, state, x));
+                pthread_mutex_lock(data->mutex);
+                if (pushSet(data->new_sets[getStateFunctionValue(data->reg, state, x)], io[x])) {
+                    freeIOTuple(&io1);
+                    atomic_store(data->error_flag, -1);
+                    break;
+                }
+                pthread_mutex_unlock(data->mutex);
             }
         }
     }
-    freeIOSets(sets, (uint64_t)1 << reg->length, 0);
-    return new_sets;   
+    return NULL;
+}
+
+static Set **updateIOSets(struct ShiftRegister *reg, Set **sets) {
+    uint64_t num_states = (uint64_t)1 << reg->length;
+    uint64_t NUM_THREADS = num_states < MAX_NUM_THREADS ? num_states : MAX_NUM_THREADS;
+    Set **new_sets = newIOSets(num_states);
+    if (!new_sets) return NULL;
+    pthread_t threads[NUM_THREADS];
+    struct ThreadDataUpdateIOSets thread_data[NUM_THREADS];
+    atomic_int error_flag = ATOMIC_VAR_INIT(0);
+    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+    uint32_t chunk_size = num_states / NUM_THREADS;
+    uint32_t remaining = num_states % NUM_THREADS;
+    uint32_t start_state = 0;
+    for (int t = 0; t < NUM_THREADS; ++t) {
+        uint32_t end_state = start_state + chunk_size + (t < remaining ? 1 : 0);
+        thread_data[t].reg = reg;
+        thread_data[t].sets = sets;
+        thread_data[t].new_sets = new_sets;
+        thread_data[t].start_state = start_state;
+        thread_data[t].end_state = end_state;
+        thread_data[t].error_flag = &error_flag;
+        thread_data[t].mutex = &mutex;
+        pthread_create(&threads[t], NULL, updateIOSetsThread, &thread_data[t]);
+        start_state = end_state;
+    }
+    for (int t = 0; t < NUM_THREADS; ++t) {
+        pthread_join(threads[t], NULL);
+    }
+    pthread_mutex_destroy(&mutex);
+    if (atomic_load(&error_flag)) {
+        freeIOSets(new_sets, num_states, 0);
+        freeIOSets(sets, num_states, 1);
+        return NULL;
+    }
+    freeIOSets(sets, num_states, 0);
+    return new_sets;
 }
 
 static int countMemory(
@@ -345,7 +388,7 @@ static int countMemory(
 ) {
     for (*memory_size = 1; *memory_size <= upper_bound; ++(*memory_size)) {
         fprintf(stderr, "countMemory memory_size = %" PRIu64 "\n", *memory_size);
-        printIOSets(*sets, (uint64_t)1 << reg->length);
+        //printIOSets(*sets, (uint64_t)1 << reg->length);
         int criteria = checkMemoryCriteria(*sets, (uint64_t)1 << reg->length);
         if (criteria < 0) {
             freeIOSets(*sets, (uint64_t)1 << reg->length, 1);
