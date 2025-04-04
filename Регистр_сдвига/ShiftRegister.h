@@ -4,7 +4,6 @@
 #include "BitArray.h"
 #include "Graph.h"
 #include "Minimized.h"
-#include "Memory.h"
 
 struct ShiftRegister {
     uint8_t length;
@@ -22,6 +21,5 @@ void freeShiftRegister(struct ShiftRegister* reg);
 int shiftRegisterToGraph(struct ShiftRegister *reg, struct Graph *graph);
 int minimizeShiftRegister(struct Minimized *minimized, struct ShiftRegister* original);
 void printState(uint32_t *state);
-int getMemoryShiftRegister(struct Memory* memory, struct ShiftRegister *reg);
 
 #endif
