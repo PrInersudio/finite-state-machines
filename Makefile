@@ -4,7 +4,7 @@ CXX = g++
 
 # Флаги компиляции по умолчанию
 CFLAGS = -Icommon -Wall -O3 -lm
-CXXFLAGS = -Wall -O3
+CXXFLAGS = -Wall -O3 -lhiredis
 
 # Папки с исходными файлами
 COMMON_DIR = common
@@ -20,9 +20,9 @@ SR_SRCS = $(SR_DIR)/ShiftRegister.c $(SR_DIR)/Memory.c
 SR_TASK1_SRCS = $(SR_DIR)/task1.c $(SR_SRCS)
 SR_TASK2_SRCS = $(SR_DIR)/task2.c $(SR_SRCS)
 SR_TASK3_SRCS = $(SR_DIR)/task3.c $(SR_SRCS)
-SR_TASK4_SRCS = Регистр_сдвига_память/Memory.cpp Регистр_сдвига_память/ShiftRegister.cpp Регистр_сдвига_память/main.cpp
+SR_TASK4_SRCS = Регистр_сдвига_память/*.cpp
 
-TARGETS = shift_register_task1.exe shift_register_task2.exe shift_register_task3.exe shift_register_task4.exe
+TARGETS = shift_register_task1.exe shift_register_task2.exe shift_register_task3.exe Регистр_сдвига_память/run.exe
 
 # Правило для сборки всех задач
 all: $(TARGETS)
@@ -41,7 +41,7 @@ shift_register_task2.exe: $(SR_TASK2_SRCS) $(COMMON_OBJS)
 shift_register_task3.exe: $(SR_TASK3_SRCS) $(COMMON_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
 
-shift_register_task4.exe: $(SR_TASK4_SRCS)
+Регистр_сдвига_память/run.exe: $(SR_TASK4_SRCS)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 # Правило для компиляции объектных файлов из common

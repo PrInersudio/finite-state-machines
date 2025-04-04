@@ -3,6 +3,7 @@
 
 #include "ShiftRegister.hpp"
 
+void disableOldSetsDeletion();
 void getMemoryShiftRegister(ShiftRegister &reg, uint64_t upper_bound);
 
 #endif

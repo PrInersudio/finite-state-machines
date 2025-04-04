@@ -16,6 +16,7 @@ public:
     uint32_t stateFunction(uint32_t state, bool x);
     bool outputFunction(uint32_t state, bool x);
     uint8_t getLength();
+    uint64_t numStates();
 };
 
 #endif

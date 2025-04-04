@@ -28,7 +28,7 @@ static void readFunction(std::vector<bool> &func, uint64_t size, std::ifstream &
 ShiftRegister::ShiftRegister(std::string filename) {
     std::ifstream file(filename);
     if (!file.is_open())
-        throw std::runtime_error("Не открывается файл" + filename + ".");
+        throw std::runtime_error("Не открывается файл " + filename + ".");
     char buf[3];
     file.read(buf, 2);
     this->length = std::stoul(buf);
@@ -54,4 +54,8 @@ bool ShiftRegister::outputFunction(uint32_t state, bool x) {
 
 uint8_t ShiftRegister::getLength() {
     return this->length;
+}
+
+uint64_t ShiftRegister::numStates() {
+    return static_cast<uint64_t>(1) << this->length;
 }
