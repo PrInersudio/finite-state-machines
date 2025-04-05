@@ -23,7 +23,7 @@ void disableOldSetsDeletion() {
     delete_old_sets = false;
 }
 
-static IOSets<IOTuple> initIOSets(ShiftRegister &reg, uint64_t upper_bound) {
+static IOSets<IOTuple> initIOSets(MinimalShiftRegister &reg, uint64_t upper_bound) {
     IOSets<IOTuple> sets(1);
     for (uint32_t state = 0; state <= static_cast<uint32_t>(reg.numStates() - 1); ++state)
         for (bool x : {false, true})
@@ -32,7 +32,7 @@ static IOSets<IOTuple> initIOSets(ShiftRegister &reg, uint64_t upper_bound) {
 }
 
 
-static IOSets<IOTuple> updateIOSets(IOSets<IOTuple> &sets, ShiftRegister &reg) {
+static IOSets<IOTuple> updateIOSets(IOSets<IOTuple> &sets, MinimalShiftRegister &reg) {
     IOSets<IOTuple> new_sets(sets.getMemorySize() + 1);
     std::vector<uint32_t> active_states(sets.getActualStates().begin(), sets.getActualStates().end());
 
@@ -110,7 +110,7 @@ static bool checkMemoryCriteria(IOSets<IOTuple> &sets) {
 }
 
 static uint64_t countMemory(
-    ShiftRegister reg,
+    MinimalShiftRegister reg,
     uint64_t upper_bound
 ) {
     uint64_t memory_size;
@@ -126,7 +126,8 @@ static uint64_t countMemory(
     return memory_size;
 }
 
-void getMemoryShiftRegister(ShiftRegister &reg, uint64_t upper_bound) {
+void getMemoryShiftRegister(MinimalShiftRegister &reg) {
+    uint64_t upper_bound = (reg.getMinimizedWeight() * (reg.getMinimizedWeight() - 1)) >> 1;
     uint64_t memory_size = upper_bound == 0 ? 0 : countMemory(reg, upper_bound);
     if (memory_size > upper_bound)
         std::cout << "Память автомата бесконечна." << std::endl;

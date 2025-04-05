@@ -17,6 +17,7 @@ COMMON_SRCS_CPP = $(wildcard $(COMMON_DIR)/*.cpp)
 COMMON_OBJS_CPP = $(COMMON_SRCS_CPP:.cpp=.o)
 
 SR_SRCS = $(SR_DIR)/ShiftRegister.c
+SR_OBJ = $(SR_SRCS:.c=.o)
 
 # Исходные файлы для каждой задачи
 SR_TASK1_SRCS = $(SR_DIR)/task1.c $(SR_SRCS)
@@ -43,7 +44,7 @@ shift_register_task2.exe: $(SR_TASK2_SRCS) $(COMMON_OBJS_C)
 shift_register_task3.exe: $(SR_TASK3_SRCS) $(COMMON_OBJS_C)
 	$(CC) $(CFLAGS) -o $@ $^
 
-Регистр_сдвига_память/run.exe: $(SR_TASK4_SRCS) $(COMMON_OBJS_CPP)
+Регистр_сдвига_память/run.exe: $(SR_TASK4_SRCS) $(COMMON_OBJS_CPP) $(COMMON_OBJS_C) $(SR_OBJ)
 	$(CXX) $(CXXFLAGS) -lhiredis -o $@ $^
 
 # Правила для компиляции объектных файлов из common
@@ -53,7 +54,10 @@ $(COMMON_OBJS_C): $(COMMON_DIR)/%.o: $(COMMON_DIR)/%.c
 $(COMMON_OBJS_CPP): $(COMMON_DIR)/%.o: $(COMMON_DIR)/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+$(SR_OBJ): $(SR_SRCS)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 # Очистка
 clean:
-	rm -f $(TARGETS) $(COMMON_OBJS) $(COMMON_OBJS_CPP)
+	rm -f $(TARGETS) $(COMMON_OBJS) $(COMMON_OBJS_CPP) $(SR_OBJ)
 	find . -type f -name "*.log" -delete
