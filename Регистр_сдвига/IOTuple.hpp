@@ -17,8 +17,7 @@ class IOTuple {
         bool operator<(const IOTuple &other) const;
         bool operator==(const IOTuple& other) const;
         friend std::ostream &operator<<(std::ostream &os, const IOTuple &io);
-        friend std::string to_string(const IOTuple &io);
-        std::string to_string() const;
+        std::string toString() const;
     };
 
 #endif

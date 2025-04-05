@@ -31,21 +31,15 @@ bool IOTuple::operator==(const IOTuple& other) const {
 }
 
 std::ostream &operator<<(std::ostream &os, const IOTuple &io) {
-    os << io.to_string();
+    os << io.toString();
     return os;
 }
 
-std::string IOTuple::to_string() const {
+std::string IOTuple::toString() const {
     std::string str = "(";
     for (bool x : this->input) str += (x ? "1" : "0");
     str += ", ";
     for (bool y : this->output) str += (y ? "1" : "0");
     str += ")";
     return str;
-}
-
-namespace std {
-    string to_string(const IOTuple& io) {
-        return io.to_string();
-    }
 }

@@ -3,7 +3,6 @@
 
 #include "MinimalShiftRegister.hpp"
 
-void disableOldSetsDeletion();
 void getMemoryShiftRegister(MinimalShiftRegister &reg);
 
 #endif

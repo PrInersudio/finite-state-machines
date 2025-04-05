@@ -20,32 +20,32 @@ SR_SRCS = $(SR_DIR)/ShiftRegister.c
 SR_OBJ = $(SR_SRCS:.c=.o)
 
 # Исходные файлы для каждой задачи
-SR_TASK1_SRCS = $(SR_DIR)/task1.c $(SR_SRCS)
-SR_TASK2_SRCS = $(SR_DIR)/task2.c $(SR_SRCS)
-SR_TASK3_SRCS = $(SR_DIR)/task3.c $(SR_SRCS)
-SR_TASK4_SRCS = Регистр_сдвига_память/*.cpp
+SR_TASK1_SRC = $(SR_DIR)/task1.c
+SR_TASK2_SRC = $(SR_DIR)/task2.c
+SR_TASK3_SRC = $(SR_DIR)/task3.c
+SR_TASK4_SRC = $(SR_DIR)/*.cpp
 
-TARGETS = shift_register_task1.exe shift_register_task2.exe shift_register_task3.exe Регистр_сдвига_память/run.exe
+TARGETS = shift_register_task1.exe shift_register_task2.exe shift_register_task3.exe shift_register_task4.exe
 
 # Правило для сборки всех задач
 all: clean $(TARGETS)
 
 # Правило для сборки с отладочными флагами
 debug: CFLAGS += -fsanitize=address -g
-debug: CXXFLAGS += -fsanitize=address -g
+debug: CXXFLAGS += -fsanitize=address -g -DDEBUG
 debug: clean all
 
-shift_register_task1.exe: $(SR_TASK1_SRCS) $(COMMON_OBJS_C)
+shift_register_task1.exe: $(SR_TASK1_SRC) $(COMMON_OBJS_C) $(SR_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^
 
-shift_register_task2.exe: $(SR_TASK2_SRCS) $(COMMON_OBJS_C)
+shift_register_task2.exe: $(SR_TASK2_SRC) $(COMMON_OBJS_C) $(SR_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^
 
-shift_register_task3.exe: $(SR_TASK3_SRCS) $(COMMON_OBJS_C)
+shift_register_task3.exe: $(SR_TASK3_SRC) $(COMMON_OBJS_C) $(SR_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^
 
-Регистр_сдвига_память/run.exe: $(SR_TASK4_SRCS) $(COMMON_OBJS_CPP) $(COMMON_OBJS_C) $(SR_OBJ)
-	$(CXX) $(CXXFLAGS) -lhiredis -o $@ $^
+shift_register_task4.exe: $(SR_TASK4_SRC) $(COMMON_OBJS_CPP) $(COMMON_OBJS_C) $(SR_OBJ)
+	$(CXX) $(CXXFLAGS) -lsqlite3 -o $@ $^
 
 # Правила для компиляции объектных файлов из common
 $(COMMON_OBJS_C): $(COMMON_DIR)/%.o: $(COMMON_DIR)/%.c
@@ -59,5 +59,5 @@ $(SR_OBJ): $(SR_SRCS)
 
 # Очистка
 clean:
-	rm -f $(TARGETS) $(COMMON_OBJS) $(COMMON_OBJS_CPP) $(SR_OBJ)
+	rm -f $(TARGETS) $(COMMON_OBJS_C) $(COMMON_OBJS_CPP) $(SR_OBJ) *.db* *.cvc
 	find . -type f -name "*.log" -delete

@@ -2,140 +2,231 @@
 #define IOSETS_HPP
 
 #include <unordered_set>
-#include "RedisContextWrapper.hpp"
+#include <sqlite3.h>
+#include <filesystem>
+#include <mutex>
 
-template <typename IOType>
+#define DB_FILE "IOSets.db"
+
+std::mutex db_mutex;
+
+class Sqlite3ConnectionWrapper {
+private:
+    sqlite3 *db;
+public:
+    Sqlite3ConnectionWrapper();
+    ~Sqlite3ConnectionWrapper();
+    sqlite3 *get() const;
+};
+
+Sqlite3ConnectionWrapper::~Sqlite3ConnectionWrapper() {
+    if (this->db) sqlite3_close(this->db);
+#ifndef DEBUG
+    std::filesystem::remove(DB_FILE);
+#endif
+}
+
+Sqlite3ConnectionWrapper::Sqlite3ConnectionWrapper() {
+    std::lock_guard<std::mutex> lock(db_mutex);
+    if (sqlite3_open(DB_FILE, &this->db) != SQLITE_OK)
+        throw std::runtime_error("Не удалось создать базу данных для множеств.");
+    char *errmsg;
+    if (sqlite3_exec(this->db, 
+        "CREATE TABLE IF NOT EXISTS iosets ("
+        "memory_size INTEGER,"
+        "state INTEGER,"
+        "value TEXT,"
+        "PRIMARY KEY (memory_size, state, value));",
+        nullptr, nullptr, &errmsg) != SQLITE_OK) {
+
+        std::string err = errmsg;
+        sqlite3_free(errmsg);
+        throw std::runtime_error("Ошибка создания таблицы: " + err);
+    }
+}
+
+sqlite3 *Sqlite3ConnectionWrapper::get() const {
+    return this->db;
+}
+
+Sqlite3ConnectionWrapper connection;
+
+template <typename IOType, typename StateType>
 class IOSets {
 private:
-    std::unordered_set<uint32_t> actual_states;
+    std::unordered_set<StateType> actual_states;
     uint64_t memory_size;
 public:
     IOSets(uint64_t memory_size);
-    void insert(RedisContextWrapper &ctx, uint32_t state, const IOType &io);
-    std::unordered_set<uint32_t> &getActualStates();
+    void insert(const StateType &state, const IOType &io);
+    std::unordered_set<StateType> &getActualStates();
     uint64_t getMemorySize() const;
     class Iterator;
-    Iterator begin(RedisContextWrapper &ctx, uint32_t state);
-    Iterator end(RedisContextWrapper &ctx, uint32_t state);
-    bool intersects(RedisContextWrapper &ctx, uint32_t state1, uint32_t state2) const;
+    Iterator begin(const StateType &state) const;
+    Iterator end(const StateType &state) const;
+    bool intersects(const StateType &state1, const StateType &state2) const;
     bool empty() const;
-    void clear(RedisContextWrapper &ctx);
+    void clear();
 };
 
-template <typename IOType>
-class IOSets<IOType>::Iterator {
+template <typename IOType, typename StateType>
+class IOSets<IOType, StateType>::Iterator {
 private:
-    RedisContextWrapper &ctx;
-    std::string key;
-    std::string cursor;
+    sqlite3_stmt* stmt;
     bool is_end;
-    std::vector<IOType> current_batch;
-    size_t batch_pos = 0;
-
-    void fetch_next_batch();
 public:
-    Iterator(RedisContextWrapper &ctx, const std::string& k, bool end = false);
-    Iterator& operator++();
+    Iterator(const uint64_t memory_size, const StateType &state, const bool end);
+    ~Iterator();
+    Iterator &operator++();
     IOType operator*() const;
     bool operator!=(const Iterator &other) const;
 };
 
-static std::string getIOSetsKey(uint32_t state, uint64_t memory_size) {
-    return std::to_string(state) + "_" + std::to_string(memory_size);
-}
+template <typename IOType, typename StateType>
+IOSets<IOType, StateType>::IOSets(uint64_t memory_size) : memory_size(memory_size) {}
 
-static std::string getIntersectionKey(uint32_t state1, uint32_t state2, uint64_t memory_size) {
-    return std::to_string(state1) + "_" + std::to_string(state2) + "_" + std::to_string(memory_size);
-}
+template <typename IOType, typename StateType>
+void IOSets<IOType, StateType>::clear() {
+#ifndef DEBUG
+    std::lock_guard<std::mutex> lock(db_mutex);
+    sqlite3_stmt* stmt;
+    for (const StateType &state : this->actual_states) {
+        if (
+            sqlite3_prepare_v2(connection.get(),
+                "DELETE FROM iosets WHERE memory_size = ? AND state = ?;",
+                -1, &stmt, nullptr) != SQLITE_OK ||
+            sqlite3_bind_int64(stmt, 1, memory_size) != SQLITE_OK ||
+            sqlite3_bind_int64(stmt, 2, uint32_t(state)) != SQLITE_OK ||
+            sqlite3_step(stmt) != SQLITE_DONE
 
-template <typename IOType>
-IOSets<IOType>::IOSets(uint64_t memory_size) : memory_size(memory_size) {}
-
-template <typename IOType>
-void IOSets<IOType>::clear(RedisContextWrapper &ctx) {
-    for (uint32_t state : this->actual_states)
-        ctx.command("DEL %s", getIOSetsKey(state, this->memory_size).c_str());
-    this->actual_states.clear();
-}
-
-template <typename IOType>
-void IOSets<IOType>::insert(RedisContextWrapper &ctx, uint32_t state, const IOType &io) {
-    ctx.command("SADD %s %s", getIOSetsKey(state, this->memory_size).c_str(), io.to_string().c_str());
-    this->actual_states.insert(state);
-}
-
-template <typename IOType>
-IOSets<IOType>::Iterator::Iterator(RedisContextWrapper &ctx, const std::string& k, bool end)
-    : ctx(ctx), key(k), cursor("0"), is_end(end) {
-    if (!is_end) this->fetch_next_batch();
-}
-
-template <typename IOType>
-void IOSets<IOType>::Iterator::fetch_next_batch() {
-    std::vector<std::vector<std::string>> reply = ctx.command("SSCAN %s %s", key.c_str(), cursor.c_str());
-    this->cursor = reply[0][0];
-    this->current_batch.clear();
-    this->current_batch.reserve(reply[1].size());
-    for (const std::string &item_str : reply[1])
-    this->current_batch.emplace_back(item_str);
-    this->batch_pos = 0;
-    this->is_end = (cursor == "0") && this->current_batch.empty();
-}
-
-template <typename IOType>
-typename IOSets<IOType>::Iterator& IOSets<IOType>::Iterator::operator++() {
-    if (++this->batch_pos >= this->current_batch.size()) {
-        if (this->cursor != "0") this->fetch_next_batch();
-        else this->is_end = 1;
+        ) {} // В целом не важно. Не удалилось, значит не удалилось.
+        if (stmt) sqlite3_finalize(stmt);
     }
+    actual_states.clear();
+#endif
+}
+
+template <typename IOType, typename StateType>
+void IOSets<IOType, StateType>::insert(const StateType &state, const IOType &io) {
+    std::lock_guard<std::mutex> lock(db_mutex);
+    sqlite3_stmt* stmt;
+    if (
+        sqlite3_prepare_v2(connection.get(), 
+            "INSERT OR IGNORE INTO iosets (memory_size, state, value) VALUES (?, ?, ?);",
+            -1, &stmt, nullptr) != SQLITE_OK ||
+        sqlite3_bind_int64(stmt, 1, memory_size) != SQLITE_OK ||
+        sqlite3_bind_int64(stmt, 2, uint32_t(state)) != SQLITE_OK ||
+        sqlite3_bind_text(stmt, 3, io.toString().c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
+    ) {
+        if (stmt) sqlite3_finalize(stmt);
+        throw std::runtime_error("Ошибка подготовки запроса insert. Память: " +
+            std::to_string(this->memory_size) +
+            ", состояние: " + std::to_string(state) +
+            ", io: " + io.toString() + ".");
+    }
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        throw std::runtime_error("Ошибка выполнения запроса insert. Память: " +
+            std::to_string(this->memory_size) +
+            ", состояние: " + std::to_string(state) +
+            ", io: " + io.toString() + ".");
+    }
+    sqlite3_finalize(stmt);
+    actual_states.insert(state);
+}
+
+template <typename IOType, typename StateType>
+IOSets<IOType, StateType>::Iterator::Iterator(const uint64_t memory_size, 
+    const StateType &state, const bool end) : stmt(nullptr), is_end(end) {
+    
+    std::lock_guard<std::mutex> lock(db_mutex);
+    if (this->is_end) return;
+    if (
+        sqlite3_prepare_v2(connection.get(),
+            "SELECT value FROM iosets WHERE memory_size = ? AND state = ?;",
+            -1, &stmt, nullptr) != SQLITE_OK ||
+        sqlite3_bind_int64(stmt, 1, memory_size) != SQLITE_OK ||
+        sqlite3_bind_int64(stmt, 2, uint32_t(state)) != SQLITE_OK
+    ) {
+        if (stmt) sqlite3_finalize(stmt);
+        throw std::runtime_error("Ошибка подготовки запроса select. Память: " +
+            std::to_string(memory_size) +
+            ", состояние: " + std::to_string(state) + ".");
+    }
+    this->is_end = (sqlite3_step(stmt) != SQLITE_ROW);
+}
+
+template <typename IOType, typename StateType>
+IOSets<IOType, StateType>::Iterator::~Iterator() {
+    if (stmt) sqlite3_finalize(stmt);
+}
+
+template <typename IOType, typename StateType>
+typename IOSets<IOType, StateType>::Iterator &IOSets<IOType, StateType>::Iterator::operator++() {
+    if (sqlite3_step(stmt) != SQLITE_ROW)
+        this->is_end = true;
     return *this;
 }
 
-template <typename IOType>
-IOType IOSets<IOType>::Iterator::operator*() const {
-    return this->current_batch[this->batch_pos];
+template <typename IOType, typename StateType>
+IOType IOSets<IOType, StateType>::Iterator::operator*() const {
+    return IOType(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0)));
 }
 
-template <typename IOType>
-bool IOSets<IOType>::Iterator::operator!=(const Iterator& other) const {
+template <typename IOType, typename StateType>
+bool IOSets<IOType, StateType>::Iterator::operator!=(const Iterator& other) const {
     return this->is_end != other.is_end;
 }
 
-template <typename IOType>
-typename IOSets<IOType>::Iterator IOSets<IOType>::begin(RedisContextWrapper &ctx, uint32_t state) {
-    return Iterator(ctx, getIOSetsKey(state, this->memory_size));
+template <typename IOType, typename StateType>
+typename IOSets<IOType, StateType>::Iterator IOSets<IOType, StateType>::begin(const StateType &state) const {
+    return Iterator(this->memory_size, state, false);
 }
 
-template <typename IOType>
-typename IOSets<IOType>::Iterator IOSets<IOType>::end(RedisContextWrapper &ctx, uint32_t state) {
-    return Iterator(ctx, getIOSetsKey(state, this->memory_size), true);
+template <typename IOType, typename StateType>
+typename IOSets<IOType, StateType>::Iterator IOSets<IOType, StateType>::end(const StateType &state) const {
+    return Iterator(this->memory_size, state, true);
 }
 
-template <typename IOType>
-std::unordered_set<uint32_t> &IOSets<IOType>::getActualStates() {
+template <typename IOType, typename StateType>
+std::unordered_set<StateType> &IOSets<IOType, StateType>::getActualStates() {
     return this->actual_states;
 }
 
-template <typename IOType>
-uint64_t IOSets<IOType>::getMemorySize() const{
+template <typename IOType, typename StateType>
+uint64_t IOSets<IOType, StateType>::getMemorySize() const{
     return memory_size;
 }
 
-template <typename IOType>
-bool IOSets<IOType>::intersects(RedisContextWrapper &ctx, uint32_t state1, uint32_t state2) const {
-    std::string intersection_key = getIntersectionKey(state1, state2, this->memory_size);
-    ctx.command("SINTERSTORE %s %s %s", 
-        intersection_key.c_str(), 
-        getIOSetsKey(state1, memory_size).c_str(), 
-        getIOSetsKey(state2, memory_size).c_str());
-    auto exists_reply = ctx.command("EXISTS %s", intersection_key.c_str());
-    bool intersects = std::stoi(exists_reply[0][0]) > 0;
-    ctx.command("DEL %s", intersection_key.c_str());
-    return intersects;
+template <typename IOType, typename StateType>
+bool IOSets<IOType, StateType>::intersects(const StateType &state1, const StateType &state2) const {
+    std::lock_guard<std::mutex> lock(db_mutex);
+    sqlite3_stmt* stmt;
+    if (
+        sqlite3_prepare_v2(connection.get(),
+            "SELECT 1 FROM iosets i1 "
+            "INNER JOIN iosets i2 ON i1.value = i2.value "
+            "WHERE i1.memory_size = ? AND i2.memory_size = ? "
+            "AND i1.state = ? AND i2.state = ? LIMIT 1;",
+            -1, &stmt, nullptr) != SQLITE_OK ||
+            sqlite3_bind_int64(stmt, 1, this->memory_size) != SQLITE_OK ||
+            sqlite3_bind_int64(stmt, 2, this->memory_size) != SQLITE_OK ||
+            sqlite3_bind_int64(stmt, 3, uint32_t(state1)) != SQLITE_OK ||
+            sqlite3_bind_int64(stmt, 4, uint32_t(state2)) != SQLITE_OK
+    ) {
+        if (stmt) sqlite3_finalize(stmt);
+        throw std::runtime_error("Ошибка подготовки запроса intersects. Память: " +
+            std::to_string(this->memory_size) +
+            ", состояние 1: " + std::to_string(state1) +
+            ", состояние 2: " + std::to_string(state2) + ".");
+    }
+    bool result = (sqlite3_step(stmt) == SQLITE_ROW);
+    sqlite3_finalize(stmt);
+    return result;
 }
 
-template <typename IOType>
-bool IOSets<IOType>::empty() const {
+template <typename IOType, typename StateType>
+bool IOSets<IOType, StateType>::empty() const {
     return this->actual_states.empty();
 }
 

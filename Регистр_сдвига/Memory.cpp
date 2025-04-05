@@ -8,43 +8,27 @@
 #include "../common/IOSets.hpp"
 #include "IOTuple.hpp"
 
-std::vector<RedisContextWrapper> ctxes;
-
-void initConnections(size_t num_states) {
-    ctxes.resize(std::min<unsigned>(
-        std::thread::hardware_concurrency(),
-        num_states
-    ));
-}
-
-bool delete_old_sets = true;
-
-void disableOldSetsDeletion() {
-    delete_old_sets = false;
-}
-
-static IOSets<IOTuple> initIOSets(MinimalShiftRegister &reg, uint64_t upper_bound) {
-    IOSets<IOTuple> sets(1);
+static IOSets<IOTuple, uint32_t> initIOSets(MinimalShiftRegister &reg, uint64_t upper_bound) {
+    IOSets<IOTuple, uint32_t> sets(1);
     for (uint32_t state = 0; state <= static_cast<uint32_t>(reg.numStates() - 1); ++state)
         for (bool x : {false, true})
-            sets.insert(ctxes[0], reg.stateFunction(state, x), IOTuple(x, reg.outputFunction(state, x)));
+            sets.insert(reg.stateFunction(state, x), IOTuple(x, reg.outputFunction(state, x)));
     return sets;
 }
 
-
-static IOSets<IOTuple> updateIOSets(IOSets<IOTuple> &sets, MinimalShiftRegister &reg) {
-    IOSets<IOTuple> new_sets(sets.getMemorySize() + 1);
+static IOSets<IOTuple, uint32_t> updateIOSets(IOSets<IOTuple, uint32_t> &sets, MinimalShiftRegister &reg) {
+    IOSets<IOTuple, uint32_t> new_sets(sets.getMemorySize() + 1);
     std::vector<uint32_t> active_states(sets.getActualStates().begin(), sets.getActualStates().end());
 
     auto worker = [&](uint32_t start, uint32_t end) {
         try {
             for (size_t i = start; i < end; ++i) {
                 const uint32_t &state = active_states[i];
-                for (auto it = sets.begin(ctxes[i], state); it != sets.end(ctxes[i], state); ++it)
+                for (auto it = sets.begin(state); it != sets.end(state); ++it)
                     for (bool x : {false, true}) {
                         IOTuple new_io = *it;
                         new_io.push(x, reg.outputFunction(state, x));
-                        new_sets.insert(ctxes[i], reg.stateFunction(state, x), new_io);
+                        new_sets.insert(reg.stateFunction(state, x), new_io);
                     }
             }
         } catch (const std::exception &e) {
@@ -53,7 +37,7 @@ static IOSets<IOTuple> updateIOSets(IOSets<IOTuple> &sets, MinimalShiftRegister 
     };
 
     const unsigned num_threads = std::min<unsigned>(
-        ctxes.size(),
+        std::thread::hardware_concurrency(),
         active_states.size()
     );
     std::vector<std::future<void>> futures;
@@ -67,11 +51,11 @@ static IOSets<IOTuple> updateIOSets(IOSets<IOTuple> &sets, MinimalShiftRegister 
     }
     for (auto &future : futures)
         future.get();
-    if(delete_old_sets) sets.clear(ctxes[0]);
+    sets.clear();
     return new_sets;
 }
 
-static bool checkMemoryCriteria(IOSets<IOTuple> &sets) {
+static bool checkMemoryCriteria(IOSets<IOTuple, uint32_t> &sets) {
     if (sets.empty()) return true;
     std::vector<uint32_t> active_states(sets.getActualStates().begin(), sets.getActualStates().end());
     if (active_states.size() < 2) return true;
@@ -81,7 +65,7 @@ static bool checkMemoryCriteria(IOSets<IOTuple> &sets) {
         try {
             for (size_t i = start; i < end && result.load(std::memory_order_relaxed); ++i)
                 for (size_t j = i + 1; j < active_states.size() && result.load(std::memory_order_relaxed); ++j) {
-                    if (sets.intersects(ctxes[i], active_states[i], active_states[j])) {
+                    if (sets.intersects(active_states[i], active_states[j])) {
                         result.store(false, std::memory_order_relaxed);
                         break;
                     };
@@ -92,7 +76,7 @@ static bool checkMemoryCriteria(IOSets<IOTuple> &sets) {
     };
 
     const unsigned num_threads = std::min<unsigned>(
-        ctxes.size(),
+        std::thread::hardware_concurrency(),
         active_states.size()
     );
     std::vector<std::future<void>> futures;
@@ -114,15 +98,13 @@ static uint64_t countMemory(
     uint64_t upper_bound
 ) {
     uint64_t memory_size;
-    initConnections(reg.numStates());
     IOSets sets = initIOSets(reg, upper_bound);
     for (memory_size = 1; memory_size <= upper_bound; ++memory_size) {
         std::cerr << "countMemory memory_size = " << memory_size << std::endl;
         if (checkMemoryCriteria(sets)) break;
         sets = updateIOSets(sets, reg);
     }
-    if(delete_old_sets) sets.clear(ctxes[0]);
-    ctxes.clear();
+    sets.clear();
     return memory_size;
 }
 
