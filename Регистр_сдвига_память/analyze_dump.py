@@ -7,7 +7,7 @@ if len(argv) < 2:
 try:
     with open(argv[1], encoding="utf-8") as f:
         dump = loads(f.read())
-    with open(argv[1].split(".")[0] + ".txt", "w", encoding="utf-8") as f:
+    with open(argv[1].split(".")[0] + ".log", "w", encoding="utf-8") as f:
         for element in sorted(dump, key = lambda element: tuple(map(int, element["key"].split('_')))[::-1]):
             print(element["key"], element["members"], file = f)
 except Exception as e:

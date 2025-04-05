@@ -5,7 +5,8 @@
 #include <atomic>
 #include <mutex>
 #include <future>
-#include "IOSets.hpp"
+#include "../common/IOSets.hpp"
+#include "IOTuple.hpp"
 
 std::vector<RedisContextWrapper> ctxes;
 
@@ -22,8 +23,8 @@ void disableOldSetsDeletion() {
     delete_old_sets = false;
 }
 
-static IOSets initIOSets(ShiftRegister &reg, uint64_t upper_bound) {
-    IOSets sets(1);
+static IOSets<IOTuple> initIOSets(ShiftRegister &reg, uint64_t upper_bound) {
+    IOSets<IOTuple> sets(1);
     for (uint32_t state = 0; state <= static_cast<uint32_t>(reg.numStates() - 1); ++state)
         for (bool x : {false, true})
             sets.insert(ctxes[0], reg.stateFunction(state, x), IOTuple(x, reg.outputFunction(state, x)));
@@ -31,8 +32,8 @@ static IOSets initIOSets(ShiftRegister &reg, uint64_t upper_bound) {
 }
 
 
-static IOSets updateIOSets(IOSets &sets, ShiftRegister &reg) {
-    IOSets new_sets(sets.getMemorySize() + 1);
+static IOSets<IOTuple> updateIOSets(IOSets<IOTuple> &sets, ShiftRegister &reg) {
+    IOSets<IOTuple> new_sets(sets.getMemorySize() + 1);
     std::vector<uint32_t> active_states(sets.getActualStates().begin(), sets.getActualStates().end());
 
     auto worker = [&](uint32_t start, uint32_t end) {
@@ -70,7 +71,7 @@ static IOSets updateIOSets(IOSets &sets, ShiftRegister &reg) {
     return new_sets;
 }
 
-static bool checkMemoryCriteria(IOSets &sets) {
+static bool checkMemoryCriteria(IOSets<IOTuple> &sets) {
     if (sets.empty()) return true;
     std::vector<uint32_t> active_states(sets.getActualStates().begin(), sets.getActualStates().end());
     if (active_states.size() < 2) return true;
