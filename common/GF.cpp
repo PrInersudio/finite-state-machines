@@ -20,7 +20,9 @@ GF::GF(uint32_t q) : q(q) {
     }
     fq_ctx_init(this->ctx, &factor->p[0], factor->exp[0], "x");
     fmpz_factor_clear(factor);
+    std::cout << "Из полученного ввода выведены следующие параметры поля:" << std::endl;
     fq_ctx_print(this->ctx);
+    std::cout << std::endl;
 }
 
 const fmpz *GF::Prime() const {
@@ -193,6 +195,14 @@ GFElement& GFElement::operator=(const GFElement &other) {
     return *this;
 }
 
+GFElement::operator uint16_t() const {
+    uint16_t result = 0;
+    for (slong i = 0; i < fmpz_poly_length(this->element); ++i)
+        result = result * *this->gf.Prime() +
+            fmpz_poly_get_coeff_ui(this->element, fmpz_poly_degree(this->element) - i);
+    return result;
+}
+
 GFMatrix::GFMatrix(const GF &gf, slong rows, slong cols) : gf(gf) {
     fq_mat_init(this->mat, rows, cols, this->gf.getCTX());
 }
@@ -200,6 +210,10 @@ GFMatrix::GFMatrix(const GF &gf, slong rows, slong cols) : gf(gf) {
 GFMatrix::GFMatrix(const GFMatrix &other) : gf(other.gf) {
     fq_mat_init_set(this->mat, other.mat, this->gf.getCTX());
 }
+
+GFMatrix::GFMatrix(const GF &gf, const GFMatrix &other) : gf(gf) {
+    fq_mat_init_set(this->mat, other.mat, this->gf.getCTX());
+};
 
 GFMatrix::~GFMatrix() {
     fq_mat_clear(mat, this->gf.getCTX());
@@ -232,7 +246,11 @@ GFMatrix &GFMatrix::operator-=(const GFMatrix &other) {
 }
 
 GFMatrix &GFMatrix::operator*=(const GFMatrix &other) {
-    fq_mat_mul(this->mat, this->mat, other.mat, this->gf.getCTX());
+    fq_mat_t result;
+    fq_mat_init(result, this->rows(), other.cols(), this->gf.getCTX());
+    fq_mat_mul(result, this->mat, other.mat, this->gf.getCTX());
+    fq_mat_swap(this->mat, result, this->gf.getCTX());
+    fq_mat_clear(result, this->gf.getCTX());
     return *this;
 }
 
@@ -277,8 +295,8 @@ GFMatrix GFMatrix::operator-(const GFMatrix &other) const {
 }
 
 GFMatrix GFMatrix::operator*(const GFMatrix &other) const {
-    GFMatrix result(*this);
-    result *= other;
+    GFMatrix result(this->gf, this->rows(), other.cols());
+    fq_mat_mul(result.mat, this->mat, other.mat, this->gf.getCTX());
     return result;
 }
 
@@ -293,7 +311,7 @@ std::string GFMatrix::toString() const {
     for (slong i = 0; i < this->rows(); ++i) {
         result += "\t[ ";
         for (slong j = 0; j < this->cols(); ++j) {
-            char* str = fq_get_str(fq_mat_entry(this->mat, i, j), this->gf.getCTX());
+            char* str = fq_get_str_pretty(fq_mat_entry(this->mat, i, j), this->gf.getCTX());
             result += str;
             if (j != this->cols() - 1) result += ", ";
             flint_free(str);

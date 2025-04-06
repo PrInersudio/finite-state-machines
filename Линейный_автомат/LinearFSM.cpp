@@ -4,7 +4,7 @@
 #include <iostream>
 
 LinearFSM::LinearFSM(const GF &gf, const GFMatrix &A, const GFMatrix &B, const GFMatrix &C, const GFMatrix &D, slong n)
-    : gf(gf), A(A), B(B), C(C), D(D), state(gf, 1, n) {}
+    : gf(gf), A(this->gf, A), B(this->gf, B), C(this->gf, C), D(this->gf, D), state(this->gf, 1, n) {}
 
 GFMatrix LinearFSM::operator()(const GFMatrix &input) {
     GFMatrix output = this->state * C + input * D;
@@ -41,8 +41,8 @@ const GF &LinearFSM::getGF() const {
 }
 
 static void skipEmptyLines(std::ifstream &file, std::string &line) {
-    do {std::getline(file, line); std::cout << "asd" << line; }
-    while (line.find_first_not_of(" \t\n\r") != std::string::npos);
+    do std::getline(file, line);
+    while (line.find_first_not_of(" \t\n\r") == std::string::npos && !file.eof());
 }
 
 static void readMatrix(std::ifstream &file, GFMatrix &mat) {
@@ -74,8 +74,7 @@ LinearFSM initLinearFSM(const std::string filename) {
     iss.str(line);
     iss >> m >> n >> k;
     GFMatrix A(gf, n, n), B(gf, m, n), C(gf, n, k), D(gf, m, k);
-    GFMatrix matrices[] = { A, B, C, D };
-    for (GFMatrix &mat : matrices)
-        readMatrix(file, mat);
+    for (GFMatrix *mat : { &A, &B, &C, &D })
+        readMatrix(file, *mat);
     return LinearFSM(gf, A, B, C, D, n);
 }

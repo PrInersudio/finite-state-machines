@@ -4,9 +4,16 @@
 #include <unordered_set>
 #include <sqlite3.h>
 #include <filesystem>
-#include <mutex>
 
 #define DB_FILE "IOSets.db"
+
+template <typename StateType>
+static std::string stateToString(const StateType &state) {
+    std::ostringstream oss;
+    oss << state;
+    return oss.str();
+}
+
 
 class Sqlite3ConnectionWrapper {
 private:
@@ -31,7 +38,7 @@ Sqlite3ConnectionWrapper::Sqlite3ConnectionWrapper() {
     if (sqlite3_exec(this->db, 
         "CREATE TABLE IF NOT EXISTS iosets ("
         "memory_size INTEGER,"
-        "state INTEGER,"
+        "state TEXT,"
         "value TEXT,"
         "PRIMARY KEY (memory_size, state, value));",
         nullptr, nullptr, &errmsg) != SQLITE_OK) {
@@ -86,20 +93,16 @@ template <typename IOType, typename StateType>
 void IOSets<IOType, StateType>::clear() {
 #ifndef DEBUG
     sqlite3_stmt* stmt;
-    for (const StateType &state : this->actual_states) {
-        if (
-            sqlite3_prepare_v2(connection.get(),
-                "DELETE FROM iosets WHERE memory_size = ? AND state = ?;",
-                -1, &stmt, nullptr) != SQLITE_OK ||
-            sqlite3_bind_int64(stmt, 1, memory_size) != SQLITE_OK ||
-            sqlite3_bind_int64(stmt, 2, uint32_t(state)) != SQLITE_OK ||
-            sqlite3_step(stmt) != SQLITE_DONE
-
-        ) {} // В целом не важно. Не удалилось, значит не удалилось.
-        if (stmt) sqlite3_finalize(stmt);
-    }
-    actual_states.clear();
+    if (
+        sqlite3_prepare_v2(connection.get(),
+            "DELETE FROM iosets WHERE memory_size = ?;",
+            -1, &stmt, nullptr) != SQLITE_OK ||
+        sqlite3_bind_int64(stmt, 1, memory_size) != SQLITE_OK ||
+        sqlite3_step(stmt) != SQLITE_DONE
+    ) {} // В целом не важно. Не удалилось, значит не удалилось.
+    if (stmt) sqlite3_finalize(stmt);
 #endif
+    actual_states.clear();
 }
 
 template <typename IOType, typename StateType>
@@ -110,20 +113,20 @@ void IOSets<IOType, StateType>::insert(const StateType &state, const IOType &io)
             "INSERT OR IGNORE INTO iosets (memory_size, state, value) VALUES (?, ?, ?);",
             -1, &stmt, nullptr) != SQLITE_OK ||
         sqlite3_bind_int64(stmt, 1, memory_size) != SQLITE_OK ||
-        sqlite3_bind_int64(stmt, 2, uint32_t(state)) != SQLITE_OK ||
+        sqlite3_bind_text(stmt, 2, stateToString(state).c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK ||
         sqlite3_bind_text(stmt, 3, io.toString().c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
     ) {
         if (stmt) sqlite3_finalize(stmt);
         throw std::runtime_error("Ошибка подготовки запроса insert. Память: " +
             std::to_string(this->memory_size) +
-            ", состояние: " + std::to_string(state) +
+            ", состояние: " + stateToString(state) +
             ", io: " + io.toString() + ".");
     }
     if (sqlite3_step(stmt) != SQLITE_DONE) {
         sqlite3_finalize(stmt);
         throw std::runtime_error("Ошибка выполнения запроса insert. Память: " +
             std::to_string(this->memory_size) +
-            ", состояние: " + std::to_string(state) +
+            ", состояние: " + stateToString(state) +
             ", io: " + io.toString() + ".");
     }
     sqlite3_finalize(stmt);
@@ -140,12 +143,12 @@ IOSets<IOType, StateType>::Iterator::Iterator(const uint64_t memory_size,
             "SELECT value FROM iosets WHERE memory_size = ? AND state = ?;",
             -1, &stmt, nullptr) != SQLITE_OK ||
         sqlite3_bind_int64(stmt, 1, memory_size) != SQLITE_OK ||
-        sqlite3_bind_int64(stmt, 2, uint32_t(state)) != SQLITE_OK
+        sqlite3_bind_text(stmt, 2, stateToString(state).c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
     ) {
         if (stmt) sqlite3_finalize(stmt);
         throw std::runtime_error("Ошибка подготовки запроса select. Память: " +
             std::to_string(memory_size) +
-            ", состояние: " + std::to_string(state) + ".");
+            ", состояние: " + stateToString(state) + ".");
     }
     this->is_end = (sqlite3_step(stmt) != SQLITE_ROW);
 }
@@ -204,8 +207,8 @@ bool IOSets<IOType, StateType>::intersects(const StateType &state1, const StateT
             -1, &stmt, nullptr) != SQLITE_OK ||
             sqlite3_bind_int64(stmt, 1, this->memory_size) != SQLITE_OK ||
             sqlite3_bind_int64(stmt, 2, this->memory_size) != SQLITE_OK ||
-            sqlite3_bind_int64(stmt, 3, uint32_t(state1)) != SQLITE_OK ||
-            sqlite3_bind_int64(stmt, 4, uint32_t(state2)) != SQLITE_OK
+            sqlite3_bind_text(stmt, 3, stateToString(state1).c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK ||
+            sqlite3_bind_text(stmt, 4, stateToString(state2).c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
     ) {
         if (stmt) sqlite3_finalize(stmt);
         throw std::runtime_error("Ошибка подготовки запроса intersects. Память: " +

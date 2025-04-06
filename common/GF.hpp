@@ -27,8 +27,8 @@ public:
 
 class GFElement {
     private:
-        fq_t element;
         const GF &gf;
+        fq_t element;
         
         void inv();
     public:
@@ -54,17 +54,22 @@ class GFElement {
         std::string toString() const;
         friend bool operator==(const GFElement &a, const GFElement &b);
         GFElement& operator=(const GFElement &other);
+        explicit operator uint16_t() const;
 };
 
 class GFMatrix {
     private:
-        fq_mat_t mat;
         const GF &gf;
+        fq_mat_t mat;
     public:
         GFMatrix(const GF &gf, slong rows, slong cols);
+        // Внимание! Берёт ту же ссылку на GF, что хранится в оригинале.
         GFMatrix(const GFMatrix &other);
+        // Берёт новую ссылку на GF.
+        GFMatrix(const GF &gf, const GFMatrix &other);
         ~GFMatrix();
         void one();
+        // Внимание! gf в вернувшемся элементе является ссылкой на поле из этого автомата.
         GFElement operator()(const slong row, const slong col) const;
         void operator()(const slong row, const slong col, const GFElement &element);
         void operator()(const slong row, const slong col, std::uint16_t element);
