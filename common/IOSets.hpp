@@ -8,8 +8,6 @@
 
 #define DB_FILE "IOSets.db"
 
-std::mutex db_mutex;
-
 class Sqlite3ConnectionWrapper {
 private:
     sqlite3 *db;
@@ -106,7 +104,6 @@ void IOSets<IOType, StateType>::clear() {
 
 template <typename IOType, typename StateType>
 void IOSets<IOType, StateType>::insert(const StateType &state, const IOType &io) {
-    std::lock_guard<std::mutex> lock(db_mutex);
     sqlite3_stmt* stmt;
     if (
         sqlite3_prepare_v2(connection.get(), 
