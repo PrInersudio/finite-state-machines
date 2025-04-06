@@ -27,7 +27,6 @@ Sqlite3ConnectionWrapper::~Sqlite3ConnectionWrapper() {
 }
 
 Sqlite3ConnectionWrapper::Sqlite3ConnectionWrapper() {
-    std::lock_guard<std::mutex> lock(db_mutex);
     if (sqlite3_open(DB_FILE, &this->db) != SQLITE_OK)
         throw std::runtime_error("Не удалось создать базу данных для множеств.");
     char *errmsg;
@@ -88,7 +87,6 @@ IOSets<IOType, StateType>::IOSets(uint64_t memory_size) : memory_size(memory_siz
 template <typename IOType, typename StateType>
 void IOSets<IOType, StateType>::clear() {
 #ifndef DEBUG
-    std::lock_guard<std::mutex> lock(db_mutex);
     sqlite3_stmt* stmt;
     for (const StateType &state : this->actual_states) {
         if (
@@ -139,7 +137,6 @@ template <typename IOType, typename StateType>
 IOSets<IOType, StateType>::Iterator::Iterator(const uint64_t memory_size, 
     const StateType &state, const bool end) : stmt(nullptr), is_end(end) {
     
-    std::lock_guard<std::mutex> lock(db_mutex);
     if (this->is_end) return;
     if (
         sqlite3_prepare_v2(connection.get(),
@@ -200,7 +197,6 @@ uint64_t IOSets<IOType, StateType>::getMemorySize() const{
 
 template <typename IOType, typename StateType>
 bool IOSets<IOType, StateType>::intersects(const StateType &state1, const StateType &state2) const {
-    std::lock_guard<std::mutex> lock(db_mutex);
     sqlite3_stmt* stmt;
     if (
         sqlite3_prepare_v2(connection.get(),
