@@ -19,7 +19,8 @@ COMMON_OBJS_CPP = $(COMMON_SRCS_CPP:.cpp=.o)
 
 SR_SRC = $(SR_DIR)/ShiftRegister.c
 SR_OBJ = $(SR_SRC:.c=.o)
-LIN_SRCS = $(LIN_DIR)/*.cpp
+LIN_SRC = $(LIN_DIR)/LinearFSM.cpp
+LIN_OBJ = $(LIN_SRC:.cpp=.o)
 
 # Исходные файлы для каждой задачи
 SR_TASK1_SRC = $(SR_DIR)/task1.c
@@ -27,8 +28,9 @@ SR_TASK2_SRC = $(SR_DIR)/task2.c
 SR_TASK3_SRC = $(SR_DIR)/task3.c
 SR_TASK4_SRC = $(SR_DIR)/*.cpp
 LIN_TASK1_SRC = $(LIN_DIR)/task1.cpp
+LIN_TASK3_SRC = $(LIN_DIR)/task3.cpp
 
-TARGETS = shift_register_task1.exe shift_register_task2.exe shift_register_task3.exe shift_register_task4.exe lin_task1.exe
+TARGETS = shift_register_task1.exe shift_register_task2.exe shift_register_task3.exe shift_register_task4.exe lin_task1.exe lin_task3.exe
 
 # Правило для сборки всех задач
 all: clean $(TARGETS)
@@ -50,7 +52,10 @@ shift_register_task3.exe: $(SR_TASK3_SRC) $(COMMON_OBJS_C) $(SR_OBJ)
 shift_register_task4.exe: $(SR_TASK4_SRC) $(COMMON_OBJS_C) $(SR_OBJ)
 	$(CXX) $(CXXFLAGS) -lsqlite3 -o $@ $^
 
-lin_task1.exe: $(LIN_TASK1_SRC) $(LIN_SRCS) $(COMMON_OBJS_CPP)
+lin_task1.exe: $(LIN_TASK1_SRC) $(LIN_OBJ) $(COMMON_OBJS_CPP)
+	$(CXX) $(CXXFLAGS) -lflint -o $@ $^
+
+lin_task3.exe: $(LIN_TASK3_SRC) $(LIN_OBJ) $(COMMON_OBJS_CPP) $(COMMON_OBJS_C)
 	$(CXX) $(CXXFLAGS) -lflint -o $@ $^
 
 # Правила для компиляции объектных файлов из common

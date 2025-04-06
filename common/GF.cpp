@@ -33,6 +33,10 @@ slong GF::Degree() const {
     return fq_ctx_degree(this->ctx);
 }
 
+uint32_t GF::Order() const {
+    return this->q;
+}
+
 GF::GF(const GF &other) : q(other.q) {
     fq_ctx_init(this->ctx, other.Prime(), other.Degree(), "x");
 }
@@ -213,7 +217,14 @@ GFMatrix::GFMatrix(const GFMatrix &other) : gf(other.gf) {
 
 GFMatrix::GFMatrix(const GF &gf, const GFMatrix &other) : gf(gf) {
     fq_mat_init_set(this->mat, other.mat, this->gf.getCTX());
-};
+}
+
+GFMatrix::GFMatrix(const GF &gf, slong cols, uint64_t index) : GFMatrix(gf, 1, cols) {
+    for (slong i = 0; i < cols; ++i) {
+        (*this)(0, cols - i - 1, index % gf.Order());
+        index /= gf.Order();
+    }
+}
 
 GFMatrix::~GFMatrix() {
     fq_mat_clear(mat, this->gf.getCTX());
@@ -342,4 +353,12 @@ std::ostream& operator<<(std::ostream &os, const GFMatrix &mat) {
 GFMatrix &GFMatrix::operator=(const GFMatrix &other) {
     if (this != &other) fq_mat_set(this->mat, other.mat, this->gf.getCTX());
     return *this;
+}
+
+GFMatrix::operator uint64_t() const {
+    // TODO: Придумать вариант для не векторов.
+    uint64_t result = 0;
+    for (slong i = 0; i < this->cols(); ++i)
+        result = result * this->gf.Order() + uint16_t((*this)(0, i));
+    return result;
 }

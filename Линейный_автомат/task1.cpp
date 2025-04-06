@@ -23,7 +23,7 @@ void printWelcomeMessage() {
 
 bool initState(LinearFSM &lin) {
     std::cout << "Введите начальное состояние из GF(" <<
-        *lin.Prime() << (lin.Degree() == 1 ? "" : "^" + std::to_string(lin.Degree())) << ")^"
+        *lin.getGF().Prime() << (lin.getGF().Degree() == 1 ? "" : "^" + std::to_string(lin.getGF().Degree())) << ")^"
         << lin.stateLength() << ": ";
     GFMatrix init_state(lin.getGF(), 1, lin.stateLength());
     for (slong i = 0; i < lin.stateLength(); ++i) {
@@ -39,7 +39,7 @@ void cycle(LinearFSM &lin) {
     GFMatrix input(lin.getGF(), 1, lin.inputLength());
     while (true) {
         std::cout << "Введите вход из (" <<
-            *lin.Prime() << "^" << lin.Degree() << ")^" << lin.inputLength() << ": ";
+            *lin.getGF().Prime() << "^" << lin.getGF().Degree() << ")^" << lin.inputLength() << ": ";
         for (slong i = 0; i < lin.inputLength(); ++i) {
             uint16_t input_element;
             if (getInput(input_element)) return;

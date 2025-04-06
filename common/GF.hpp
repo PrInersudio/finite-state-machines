@@ -21,6 +21,7 @@ public:
     ~GF();
     const fmpz *Prime() const;
     slong Degree() const;
+    uint32_t Order() const;
     GFElement operator()(std::uint16_t n) const;
     const fq_ctx_t &getCTX() const;
 };
@@ -67,6 +68,7 @@ class GFMatrix {
         GFMatrix(const GFMatrix &other);
         // Берёт новую ссылку на GF.
         GFMatrix(const GF &gf, const GFMatrix &other);
+        GFMatrix(const GF &gf, slong cols, uint64_t index);
         ~GFMatrix();
         void one();
         // Внимание! gf в вернувшемся элементе является ссылкой на поле из этого автомата.
@@ -87,6 +89,7 @@ class GFMatrix {
         slong rows() const;
         slong cols() const;
         GFMatrix &operator=(const GFMatrix &other);
+        explicit operator uint64_t() const;
     };
 
 std::ostream& operator<<(std::ostream &os, const GFElement &elem);

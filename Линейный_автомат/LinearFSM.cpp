@@ -2,6 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include "pow.hpp"
 
 LinearFSM::LinearFSM(const GF &gf, const GFMatrix &A, const GFMatrix &B, const GFMatrix &C, const GFMatrix &D, slong n)
     : gf(gf), A(this->gf, A), B(this->gf, B), C(this->gf, C), D(this->gf, D), state(this->gf, 1, n) {}
@@ -20,12 +21,6 @@ void LinearFSM::setState(const GFMatrix &state) {
     this->state = state;
 }
 
-const fmpz *LinearFSM::Prime() const {
-    return this->gf.Prime();
-}
-const slong LinearFSM::Degree() const {
-    return this->gf.Degree();
-}
 const slong LinearFSM::inputLength() const {
     return this->B.rows();
 }
@@ -38,6 +33,25 @@ const slong LinearFSM::outputLength() const {
 
 const GF &LinearFSM::getGF() const {
     return this->gf;
+}
+
+GFMatrix LinearFSM::stateFunction(const GFMatrix &state, const GFMatrix &input) const {
+    return state * A + input * B;
+}
+GFMatrix LinearFSM::outputFunction(const GFMatrix &state, const GFMatrix &input) const {
+    return state * C + input * B;
+}
+
+uint64_t LinearFSM::numInputs() const {
+    return pow(this->gf.Order(), this->inputLength());
+}
+
+uint64_t LinearFSM::numStates() const {
+    return pow(this->gf.Order(), this->stateLength());
+}
+
+uint64_t LinearFSM::numOutputs() const {
+    return pow(this->gf.Order(), this->outputLength());
 }
 
 static void skipEmptyLines(std::ifstream &file, std::string &line) {
