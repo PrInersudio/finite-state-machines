@@ -62,13 +62,17 @@ class GFMatrix {
     private:
         const GF &gf;
         fq_mat_t mat;
+        mutable slong min_poly_degree = - 2;
+
     public:
+        GFMatrix(const GF &gf, fq_mat_t&& mat);
         GFMatrix(const GF &gf, slong rows, slong cols);
         // Внимание! Берёт ту же ссылку на GF, что хранится в оригинале.
         GFMatrix(const GFMatrix &other);
         // Берёт новую ссылку на GF.
         GFMatrix(const GF &gf, const GFMatrix &other);
         GFMatrix(const GF &gf, slong cols, uint64_t index);
+        const fq_mat_t &raw() const;
         ~GFMatrix();
         void one();
         // Внимание! gf в вернувшемся элементе является ссылкой на поле из этого автомата.
@@ -90,6 +94,8 @@ class GFMatrix {
         slong cols() const;
         GFMatrix &operator=(const GFMatrix &other);
         explicit operator uint64_t() const;
+        slong minPolyDegree() const;
+        slong rank() const;
     };
 
 std::ostream& operator<<(std::ostream &os, const GFElement &elem);

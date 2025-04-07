@@ -32,6 +32,11 @@ int main(int argc, char **argv) {
         return -1;
     }
     LinearFSM lin = initLinearFSM(argv[1]);
+    if (lin.isStronglyConnected()) {
+        std::cout << "Линейный автомат сильно связанный." << std::endl;
+        return 0;
+    }
+    std::cout << "Линейный автомат не сильно связанный." << std::endl;
     struct Graph graph;
     try {
         linearFSMToGraph(&graph, lin);
@@ -49,9 +54,9 @@ int main(int argc, char **argv) {
     freeGraph(&graph);
     if (rc) throw std::runtime_error("Не удалось построить компоненты связанности графа.");
     if (getListSize(&components) == 1)
-        std::cout << "Являтся связаным." << std::endl;
+        std::cout << "Линейный автомат связанный." << std::endl;
     else
-        std::cout << "Не являтся связаным." << std::endl;
+        std::cout << "Линейный автомат не связанный." << std::endl;
     deepClearList(&components, reinterpret_cast<FreeValueFunction>(clearList));
     return 0;
 }

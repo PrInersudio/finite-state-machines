@@ -92,3 +92,26 @@ LinearFSM initLinearFSM(const std::string filename) {
         readMatrix(file, *mat);
     return LinearFSM(gf, A, B, C, D, n);
 }
+
+static void copyMtPart(const fq_ctx_t &gf, GFMatrix &Mt, const GFMatrix &BAi, const slong i) {
+    fq_mat_t window;
+    fq_mat_window_init(window, Mt.raw(),  i * BAi.rows(), 0, (i + 1) * BAi.rows(), BAi.cols(), gf);
+    fq_mat_set(window, BAi.raw(), gf);
+    fq_mat_window_clear(window, gf);
+}
+
+GFMatrix LinearFSM::Mt(const slong t) const {
+    GFMatrix Mt(this->gf, t * B.rows(), B.cols());
+    GFMatrix BAi = B;
+    for (slong i = 0; i < t - 1; ++i) {
+        copyMtPart(this->gf.getCTX(), Mt, BAi, t - 1 - i);
+        BAi *= A;
+    }
+    copyMtPart(this->gf.getCTX(), Mt, BAi, 0);
+    std::cout << "M_" + std::to_string(t) + ": " << Mt << std::endl;
+    return Mt;
+}
+
+bool LinearFSM::isStronglyConnected() const {
+    return this->Mt(A.minPolyDegree()).rank() == this->stateLength();
+}

@@ -1,6 +1,7 @@
 #include "GF.hpp"
 #include <flint/fmpz_factor.h>
 #include <flint/fmpz.h>
+#include <flint/fq_poly.h>
 #include <stdexcept>
 #include <iostream>
 
@@ -207,6 +208,12 @@ GFElement::operator uint16_t() const {
     return result;
 }
 
+GFMatrix::GFMatrix(const GF &gf, fq_mat_t&& mat) : gf(gf) {
+    fq_mat_init(this->mat, 0, 0, this->gf.getCTX());
+    fq_mat_swap(this->mat, mat, this->gf.getCTX());
+    fq_mat_clear(mat, this->gf.getCTX());
+}
+
 GFMatrix::GFMatrix(const GF &gf, slong rows, slong cols) : gf(gf) {
     fq_mat_init(this->mat, rows, cols, this->gf.getCTX());
 }
@@ -228,6 +235,10 @@ GFMatrix::GFMatrix(const GF &gf, slong cols, uint64_t index) : GFMatrix(gf, 1, c
 
 GFMatrix::~GFMatrix() {
     fq_mat_clear(mat, this->gf.getCTX());
+}
+
+const fq_mat_t &GFMatrix::raw() const {
+    return this->mat;
 }
 
 void GFMatrix::one() {
@@ -361,4 +372,18 @@ GFMatrix::operator uint64_t() const {
     for (slong i = 0; i < this->cols(); ++i)
         result = result * this->gf.Order() + uint16_t((*this)(0, i));
     return result;
+}
+
+slong GFMatrix::minPolyDegree() const {
+    if (this->min_poly_degree != -2) return this->min_poly_degree;
+    fq_poly_t p;
+    fq_poly_init(p, this->gf.getCTX());
+    fq_mat_minpoly(p, this->mat, this->gf.getCTX());
+    this->min_poly_degree = fq_poly_degree(p, this->gf.getCTX());
+    fq_poly_clear(p, this->gf.getCTX());
+    return this->min_poly_degree;
+}
+
+slong GFMatrix::rank() const {
+    return fq_mat_rank(this->mat, this->gf.getCTX());
 }

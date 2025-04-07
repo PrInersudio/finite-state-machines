@@ -9,6 +9,8 @@ private:
     const GF gf;
     const GFMatrix A, B, C, D;
     GFMatrix state;
+
+    GFMatrix Mt(const slong t) const;
 public:
     LinearFSM(const GF &gf, const GFMatrix &A, const GFMatrix &B, const GFMatrix &C, const GFMatrix &D, slong n);
     GFMatrix operator()(const GFMatrix &input);
@@ -23,6 +25,7 @@ public:
     uint64_t numInputs() const;
     uint64_t numStates() const;
     uint64_t numOutputs() const;
+    bool isStronglyConnected() const;
 };
 
 LinearFSM initLinearFSM(std::string filename);
