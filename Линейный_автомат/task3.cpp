@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
     if (getListSize(&components) == 1)
         std::cout << "Линейный автомат связанный." << std::endl;
     else
-        std::cout << "Линейный автомат не связанный." << std::endl;
+        std::cout << "Линейный автомат не связанный. " << getListSize(&components) << "компонент." << std::endl;
     deepClearList(&components, reinterpret_cast<FreeValueFunction>(clearList));
     return 0;
 }
