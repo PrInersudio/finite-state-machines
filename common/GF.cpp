@@ -66,6 +66,16 @@ const fq_ctx_t &GF::getCTX() const {
     return this->ctx;
 }
 
+std::string GF::toString() const {
+    return "GF(" + std::to_string(fmpz_get_si(this->Prime())) +
+        "^" + std::to_string(this->Degree()) + ")";
+}
+
+std::ostream& operator<<(std::ostream &os, const GF &gf) {
+    os << gf.toString();
+    return os;
+}
+
 GFElement::GFElement(const GF &gf, const fmpz_poly_t f) : gf(gf) {
     fq_init(this->element, this->gf.getCTX());
     fq_set_fmpz_poly(this->element, f, this->gf.getCTX());
@@ -226,35 +236,45 @@ GFMatrix::GFMatrix(const GF &gf, const GFMatrix &other) : gf(gf) {
     fq_mat_init_set(this->mat, other.mat, this->gf.getCTX());
 }
 
-GFMatrix::GFMatrix(const GF &gf, slong cols, uint64_t index) : GFMatrix(gf, 1, cols) {
+GFMatrix GFMatrix::FromIndex(const GF &gf, slong cols, uint64_t index) {
+    GFMatrix mat(gf, 1, cols);
     for (slong i = 0; i < cols; ++i) {
-        (*this)(0, cols - i - 1, index % gf.Order());
+        mat(0, cols - i - 1, index);
         index /= gf.Order();
     }
+    return mat;
 }
 
 GFMatrix::~GFMatrix() {
-    fq_mat_clear(mat, this->gf.getCTX());
+    if (owns) fq_mat_clear(mat, this->gf.getCTX());
 }
 
 const fq_mat_t &GFMatrix::raw() const {
     return this->mat;
 }
 
-void GFMatrix::one() {
-    fq_mat_one(this->mat, this->gf.getCTX());
+GFMatrix &GFMatrix::one() {
+    fq_mat_t window;
+    const slong min = FLINT_MIN(this->rows(), this->cols());
+    fq_mat_window_init(window, this->mat, 0, 0, min, min, this->gf.getCTX());
+    fq_mat_zero(this->mat, this->gf.getCTX());
+    fq_mat_one(window, this->gf.getCTX());
+    fq_mat_window_clear(window, this->gf.getCTX());
+    return *this;
 }
 
 GFElement GFMatrix::operator()(const slong row, const slong col) const {
     return GFElement(this->gf, fq_mat_entry(mat, row, col));
 }
 
-void GFMatrix::operator()(const slong row, const slong col, const GFElement &element) {
+GFMatrix &GFMatrix::operator()(const slong row, const slong col, const GFElement &element) {
     fq_mat_entry_set(this->mat, row, col, element.raw(), this->gf.getCTX());
+    return *this;
 }
 
-void GFMatrix::operator()(const slong row, const slong col, std::uint16_t element) {
+GFMatrix &GFMatrix::operator()(const slong row, const slong col, std::uint16_t element) {
     (*this)(row, col, this->gf(element));
+    return *this;
 }
 
 GFMatrix &GFMatrix::operator+=(const GFMatrix &other) {
@@ -338,7 +358,7 @@ std::string GFMatrix::toString() const {
             if (j != this->cols() - 1) result += ", ";
             flint_free(str);
         }
-        result += " ]\n";
+        result += " ],\n";
     }
     result += "]";
     return result;
@@ -386,4 +406,55 @@ slong GFMatrix::minPolyDegree() const {
 
 slong GFMatrix::rank() const {
     return fq_mat_rank(this->mat, this->gf.getCTX());
+}
+
+bool GFMatrix::isZero() const {
+    return fq_mat_is_zero(this->mat, this->gf.getCTX());
+}
+
+slong GFMatrix::reduce(GFMatrix &reduced) const {
+    return fq_mat_rref(reduced.mat, this->mat, this->gf.getCTX());
+}
+
+const GF &GFMatrix::getGF() const {
+    return this->gf;
+}
+
+GFMatrix::GFMatrix(const GF &gf) : gf(gf) {}
+
+GFSubmatrix::GFSubmatrix(const GFMatrix &mat, slong r1, slong c1, slong r2, slong c2)
+    : GFMatrix(mat.getGF()) {
+
+    fq_mat_window_init(this->mat, mat.raw(), r1, c1, r2, c2, mat.getGF().getCTX());
+    this->owns = false;
+}
+GFSubmatrix::~GFSubmatrix() {
+    fq_mat_window_clear(this->mat, this->gf.getCTX());
+}
+
+GFSubmatrix &GFSubmatrix::operator=(const GFMatrix &other) {
+    if (this != &other) fq_mat_set(this->mat, other.raw(), this->gf.getCTX());
+    return *this;
+}
+
+GFMatrix &GFMatrix::swapRows(slong i, slong j) {
+    fq_mat_swap_rows(this->mat, NULL, i, j, this->gf.getCTX());
+    return *this;
+}
+
+GFMatrix &GFMatrix::swapCols(slong i, slong j) {
+    fq_mat_swap_cols(this->mat, NULL, i, j, this->gf.getCTX());
+    return *this;
+}
+
+GFMatrix GFMatrix::transpose() const {
+    GFMatrix T(this->gf, this->cols(), this->rows());
+    for (slong i = 0; i < this->rows(); ++i)
+        for (slong j = 0; j < this->cols(); ++j)
+            fq_set(
+                fq_mat_entry(T.mat, j, i),
+                fq_mat_entry(this->mat, i, j),
+                this->gf.getCTX()
+            );
+    return T;
 }

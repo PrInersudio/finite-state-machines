@@ -21,8 +21,8 @@ void linearFSMToGraph(struct Graph *graph, const LinearFSM &lin) {
             setOrDeleteEdge(
                 graph, i,
                 uint64_t(lin.stateFunction(
-                    GFMatrix(lin.getGF(), lin.stateLength(), i),
-                    GFMatrix(lin.getGF(), lin.inputLength(), j)
+                    GFMatrix::FromIndex(lin.getGF(), lin.stateLength(), i),
+                    GFMatrix::FromIndex(lin.getGF(), lin.inputLength(), j)
             )), 1);
 }
 

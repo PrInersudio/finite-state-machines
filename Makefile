@@ -28,9 +28,10 @@ SR_TASK2_SRC = $(SR_DIR)/task2.c
 SR_TASK3_SRC = $(SR_DIR)/task3.c
 SR_TASK4_SRC = $(SR_DIR)/*.cpp
 LIN_TASK1_SRC = $(LIN_DIR)/task1.cpp
+LIN_TASK2_SRC = $(LIN_DIR)/task2.cpp
 LIN_TASK3_SRC = $(LIN_DIR)/task3.cpp
 
-TARGETS = shift_register_task1.exe shift_register_task2.exe shift_register_task3.exe shift_register_task4.exe lin_task1.exe lin_task3.exe
+TARGETS = shift_register_task1.exe shift_register_task2.exe shift_register_task3.exe shift_register_task4.exe lin_task1.exe lin_task2.exe lin_task3.exe
 
 # Правило для сборки всех задач
 all: clean $(TARGETS)
@@ -53,6 +54,9 @@ shift_register_task4.exe: $(SR_TASK4_SRC) $(COMMON_OBJS_C) $(SR_OBJ)
 	$(CXX) $(CXXFLAGS) -lsqlite3 -o $@ $^
 
 lin_task1.exe: $(LIN_TASK1_SRC) $(LIN_OBJ) $(COMMON_OBJS_CPP)
+	$(CXX) $(CXXFLAGS) -lflint -o $@ $^
+
+lin_task2.exe: $(LIN_TASK2_SRC) $(LIN_OBJ) $(COMMON_OBJS_CPP)
 	$(CXX) $(CXXFLAGS) -lflint -o $@ $^
 
 lin_task3.exe: $(LIN_TASK3_SRC) $(LIN_OBJ) $(COMMON_OBJS_CPP) $(COMMON_OBJS_C)
