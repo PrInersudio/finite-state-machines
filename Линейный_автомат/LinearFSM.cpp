@@ -207,3 +207,110 @@ std::ostream& operator<<(std::ostream &os, const LinearFSM &lin) {
     os << lin.toString();
     return os;
 }
+
+class LinearFSM::Iterator {
+private:
+    GFMatrix mat;
+    fq_t one;
+    bool end;
+
+    friend class LinearFSM;
+    Iterator(const GF &gf, slong size, bool end);
+    const fq_ctx_t &getCTX() const;
+public:
+    Iterator(const Iterator &other);
+    ~Iterator();
+    Iterator &operator++();
+    Iterator operator++(int);
+    const GFMatrix &operator*() const;
+    bool operator!=(const Iterator &other) const;
+};
+
+LinearFSM::Iterator::Iterator(const Iterator &other)
+: mat(other.mat), end(other.end) {
+    fq_init(this->one, this->getCTX());
+    fq_one(this->one, this->getCTX());
+}
+
+LinearFSM::Iterator::~Iterator() {
+    fq_clear(this->one, this->getCTX());
+}
+
+const fq_ctx_t &LinearFSM::Iterator::getCTX() const {
+    return this->mat.getGF().getCTX();
+}
+
+LinearFSM::Iterator::Iterator(const GF &gf, slong size, bool end)
+: mat(gf, 1, size), end(end) {
+    fq_init(this->one, gf.getCTX());
+    fq_one(this->one, gf.getCTX());
+}
+
+LinearFSM::Iterator &LinearFSM::Iterator::operator++() {
+    for (slong i = 0; i < this->mat.cols(); ++i) {
+        fq_struct *current = fq_mat_entry(this->mat.raw(), 0, this->mat.cols() - 1 - i);
+        fq_add(current, current, this->one, this->getCTX());
+        if (!fq_is_zero(current, this->getCTX())) return *this;
+    }
+    this->end = true;
+    return *this;
+}
+
+LinearFSM::Iterator LinearFSM::Iterator::operator++(int) {
+    Iterator tmp = *this;
+    ++(*this);
+    return tmp;
+}
+
+const GFMatrix &LinearFSM::Iterator::operator*() const {
+    return this->mat;
+}
+
+bool LinearFSM::Iterator::operator!=(const Iterator &other) const {
+    return this->end != other.end;
+}
+
+auto LinearFSM::range(Iterator begin, Iterator end) const {
+    struct Range {
+        Iterator b, e;
+        Iterator begin() const { return b; }
+        Iterator end() const { return e; }
+    };
+    return Range{begin, end};
+}
+
+LinearFSM::Iterator LinearFSM::inputBegin() const {
+    return Iterator(this->gf, this->inputLength(), false);
+}
+
+LinearFSM::Iterator LinearFSM::inputEnd() const {
+    return Iterator(this->gf, this->inputLength(), true);
+}
+
+LinearFSM::Iterator LinearFSM::stateBegin() const {
+    return Iterator(this->gf, this->stateLength(), false);
+}
+
+LinearFSM::Iterator LinearFSM::stateEnd() const {
+    return Iterator(this->gf, this->stateLength(), true);
+}
+
+LinearFSM::Iterator LinearFSM::outputBegin() const {
+    return Iterator(this->gf, this->outputLength(), false);
+}
+
+LinearFSM::Iterator LinearFSM::outputEnd() const {
+    return Iterator(this->gf, this->outputLength(), true);
+}
+
+auto LinearFSM::inputRange() const {
+    return range(this->inputBegin(), this->inputEnd());
+}
+
+auto LinearFSM::stateRange() const {
+    return range(this->stateBegin(), this->stateEnd());
+}
+
+auto LinearFSM::outputRange() const {
+    return range(this->outputBegin(), this->outputEnd());
+}

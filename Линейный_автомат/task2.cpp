@@ -8,7 +8,11 @@ int main(int argc, char **argv) {
     }
     LinearFSM lin = initLinearFSM(argv[1]);
     LinearFSM min = lin.minimize(1);
-    std::cout << "Привидённый вес: " << min.numStates() << std::endl;
+    try {
+        std::cout << "Привидённый вес: " << min.numStates() << std::endl;
+    } catch (std::overflow_error &e) {
+        std::cout << "Привидённый вес: " << min.getGF().Order() << "^" << min.stateLength() << std::endl;
+    }
     std::cout << "Минимальный " << min << std::endl;
     return 0;
 }

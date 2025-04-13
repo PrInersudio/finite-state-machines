@@ -5,14 +5,6 @@
 #include <string>
 
 class LinearFSM {
-private:
-    const GF gf;
-    const GFMatrix A, B, C, D;
-    GFMatrix state;
-
-    GFMatrix Mt(const slong t) const;
-    GFMatrix buildKt(const slong t) const;
-    slong degreeOfDistinguishability(const GFMatrix &Kn) const;
 public:
     LinearFSM(const GF &gf, const GFMatrix &A, const GFMatrix &B, const GFMatrix &C, const GFMatrix &D, slong n);
     GFMatrix operator()(const GFMatrix &input);
@@ -30,6 +22,25 @@ public:
     bool isStronglyConnected() const;
     LinearFSM minimize(bool print_degree_of_distinguishability) const;
     std::string toString() const;
+    class Iterator;
+    Iterator inputBegin() const;
+    Iterator inputEnd() const;
+    Iterator stateBegin() const;
+    Iterator stateEnd() const;
+    Iterator outputBegin() const;
+    Iterator outputEnd() const;
+    auto inputRange() const;
+    auto stateRange() const;
+    auto outputRange() const;
+private:
+    const GF gf;
+    const GFMatrix A, B, C, D;
+    GFMatrix state;
+
+    GFMatrix Mt(const slong t) const;
+    GFMatrix buildKt(const slong t) const;
+    slong degreeOfDistinguishability(const GFMatrix &Kn) const;
+    auto range(Iterator begin, Iterator end) const;
 };
 
 LinearFSM initLinearFSM(std::string filename);
