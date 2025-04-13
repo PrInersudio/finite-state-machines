@@ -8,6 +8,7 @@ CXXFLAGS = -Icommon -Wall -O3
 
 # Папки с исходными файлами
 COMMON_DIR = common
+MEMORY_DIR = Memory
 SR_DIR = Регистр_сдвига
 LIN_DIR = Линейный_автомат
 
@@ -16,6 +17,8 @@ COMMON_SRCS_C = $(wildcard $(COMMON_DIR)/*.c)
 COMMON_OBJS_C = $(COMMON_SRCS_C:.c=.o)
 COMMON_SRCS_CPP = $(wildcard $(COMMON_DIR)/*.cpp)
 COMMON_OBJS_CPP = $(COMMON_SRCS_CPP:.cpp=.o)
+MEMORY_SRCS_CPP = $(wildcard $(MEMORY_DIR)/*.cpp)
+MEMORY_OBJS_CPP = $(MEMORY_SRCS_CPP:.cpp=.o)
 
 SR_SRC = $(SR_DIR)/ShiftRegister.c
 SR_OBJ = $(SR_SRC:.c=.o)
@@ -50,8 +53,8 @@ shift_register_task2.exe: $(SR_TASK2_SRC) $(COMMON_OBJS_C) $(SR_OBJ)
 shift_register_task3.exe: $(SR_TASK3_SRC) $(COMMON_OBJS_C) $(SR_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^
 
-shift_register_task4.exe: $(SR_TASK4_SRC) $(COMMON_OBJS_C) $(SR_OBJ)
-	$(CXX) $(CXXFLAGS) -lsqlite3 -o $@ $^
+shift_register_task4.exe: $(SR_TASK4_SRC) $(COMMON_OBJS_C) $(SR_OBJ) $(MEMORY_OBJS_CPP)
+	$(CXX) $(CXXFLAGS) -lhiredis -o $@ $^
 
 lin_task1.exe: $(LIN_TASK1_SRC) $(LIN_OBJ) $(COMMON_OBJS_CPP)
 	$(CXX) $(CXXFLAGS) -lflint -o $@ $^
@@ -67,6 +70,9 @@ $(COMMON_OBJS_C): $(COMMON_DIR)/%.o: $(COMMON_DIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(COMMON_OBJS_CPP): $(COMMON_DIR)/%.o: $(COMMON_DIR)/%.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(MEMORY_OBJS_CPP): $(MEMORY_DIR)/%.o: $(MEMORY_DIR)/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(SR_OBJ): $(SR_SRC)

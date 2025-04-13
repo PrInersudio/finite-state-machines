@@ -5,16 +5,32 @@
 #include <atomic>
 #include <mutex>
 #include <future>
-#include "../common/IOSets.hpp"
+#include "../Memory/IOSets.hpp"
 #include "IOTuple.hpp"
 
-static IOSets<IOTuple, uint32_t> initIOSets(MinimalShiftRegister &reg, uint64_t upper_bound) {
+static std::vector<RedisContextWrapper> ctxes;
+
+static void initConnections(size_t num_states) {
+    ctxes.resize(std::min<unsigned>(
+        std::thread::hardware_concurrency(),
+        num_states
+    ));
+}
+
+static bool delete_old_sets = true;
+
+void disableOldSetsDeletion() {
+    delete_old_sets = false;
+}
+
+static IOSets<IOTuple, uint32_t> initIOSets(MinimalShiftRegister &reg) {
     IOSets<IOTuple, uint32_t> sets(1);
     for (uint32_t state = 0; state <= static_cast<uint32_t>(reg.numStates() - 1); ++state)
         for (bool x : {false, true})
-            sets.insert(reg.stateFunction(state, x), IOTuple(x, reg.outputFunction(state, x)));
+            sets.insert(ctxes[0], reg.stateFunction(state, x), IOTuple(x, reg.outputFunction(state, x)));
     return sets;
 }
+
 
 static IOSets<IOTuple, uint32_t> updateIOSets(IOSets<IOTuple, uint32_t> &sets, MinimalShiftRegister &reg) {
     IOSets<IOTuple, uint32_t> new_sets(sets.getMemorySize() + 1);
@@ -24,11 +40,11 @@ static IOSets<IOTuple, uint32_t> updateIOSets(IOSets<IOTuple, uint32_t> &sets, M
         try {
             for (size_t i = start; i < end; ++i) {
                 const uint32_t &state = active_states[i];
-                for (auto it = sets.begin(state); it != sets.end(state); ++it)
+                for (auto it = sets.begin(ctxes[i], state); it != sets.end(ctxes[i], state); ++it)
                     for (bool x : {false, true}) {
                         IOTuple new_io = *it;
                         new_io.push(x, reg.outputFunction(state, x));
-                        new_sets.insert(reg.stateFunction(state, x), new_io);
+                        new_sets.insert(ctxes[i], reg.stateFunction(state, x), new_io);
                     }
             }
         } catch (const std::exception &e) {
@@ -37,7 +53,7 @@ static IOSets<IOTuple, uint32_t> updateIOSets(IOSets<IOTuple, uint32_t> &sets, M
     };
 
     const unsigned num_threads = std::min<unsigned>(
-        std::thread::hardware_concurrency(),
+        ctxes.size(),
         active_states.size()
     );
     std::vector<std::future<void>> futures;
@@ -51,7 +67,7 @@ static IOSets<IOTuple, uint32_t> updateIOSets(IOSets<IOTuple, uint32_t> &sets, M
     }
     for (auto &future : futures)
         future.get();
-    sets.clear();
+    if(delete_old_sets) sets.clear(ctxes[0]);
     return new_sets;
 }
 
@@ -65,7 +81,7 @@ static bool checkMemoryCriteria(IOSets<IOTuple, uint32_t> &sets) {
         try {
             for (size_t i = start; i < end && result.load(std::memory_order_relaxed); ++i)
                 for (size_t j = i + 1; j < active_states.size() && result.load(std::memory_order_relaxed); ++j) {
-                    if (sets.intersects(active_states[i], active_states[j])) {
+                    if (sets.intersects(ctxes[i], active_states[i], active_states[j])) {
                         result.store(false, std::memory_order_relaxed);
                         break;
                     };
@@ -76,7 +92,7 @@ static bool checkMemoryCriteria(IOSets<IOTuple, uint32_t> &sets) {
     };
 
     const unsigned num_threads = std::min<unsigned>(
-        std::thread::hardware_concurrency(),
+        ctxes.size(),
         active_states.size()
     );
     std::vector<std::future<void>> futures;
@@ -98,13 +114,15 @@ static uint64_t countMemory(
     uint64_t upper_bound
 ) {
     uint64_t memory_size;
-    IOSets sets = initIOSets(reg, upper_bound);
+    initConnections(reg.numStates());
+    IOSets sets = initIOSets(reg);
     for (memory_size = 1; memory_size <= upper_bound; ++memory_size) {
         std::cerr << "countMemory memory_size = " << memory_size << std::endl;
         if (checkMemoryCriteria(sets)) break;
-        sets = updateIOSets(sets, reg);
+        sets = std::move(updateIOSets(sets, reg));
     }
-    sets.clear();
+    if(delete_old_sets) sets.clear(ctxes[0]);
+    ctxes.clear();
     return memory_size;
 }
 
