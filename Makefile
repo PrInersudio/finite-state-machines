@@ -33,8 +33,9 @@ SR_TASK4_SRC = $(SR_DIR)/*.cpp
 LIN_TASK1_SRC = $(LIN_DIR)/task1.cpp
 LIN_TASK2_SRC = $(LIN_DIR)/task2.cpp
 LIN_TASK3_SRC = $(LIN_DIR)/task3.cpp
+LIN_TASK4_SRC = $(LIN_DIR)/task4.cpp $(LIN_DIR)/Memory.cpp $(LIN_DIR)/IOTuple.cpp
 
-TARGETS = shift_register_task1.exe shift_register_task2.exe shift_register_task3.exe shift_register_task4.exe lin_task1.exe lin_task2.exe lin_task3.exe
+TARGETS = shift_register_task1.exe shift_register_task2.exe shift_register_task3.exe shift_register_task4.exe lin_task1.exe lin_task2.exe lin_task3.exe lin_task4.exe
 
 # Правило для сборки всех задач
 all: clean $(TARGETS)
@@ -65,6 +66,9 @@ lin_task2.exe: $(LIN_TASK2_SRC) $(LIN_OBJ) $(COMMON_OBJS_CPP)
 lin_task3.exe: $(LIN_TASK3_SRC) $(LIN_OBJ) $(COMMON_OBJS_CPP) $(COMMON_OBJS_C)
 	$(CXX) $(CXXFLAGS) -lflint -o $@ $^
 
+lin_task4.exe: $(LIN_TASK4_SRC) $(LIN_OBJ) $(COMMON_OBJS_CPP) $(MEMORY_OBJS_CPP)
+	$(CXX) $(CXXFLAGS) -lflint -lhiredis -o $@ $^
+
 # Правила для компиляции объектных файлов из common
 $(COMMON_OBJS_C): $(COMMON_DIR)/%.o: $(COMMON_DIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -80,5 +84,5 @@ $(SR_OBJ): $(SR_SRC)
 
 # Очистка
 clean:
-	rm -f $(TARGETS) $(COMMON_OBJS_C) $(COMMON_OBJS_CPP) $(SR_OBJ) *.db* *.cvc
+	rm -f $(TARGETS) $(COMMON_OBJS_C) $(COMMON_OBJS_CPP) $(SR_OBJ) $(LIN_OBJ) $(MEMORY_OBJS_CPP) *.db* *.cvc
 	find . -type f -name "*.log" -delete

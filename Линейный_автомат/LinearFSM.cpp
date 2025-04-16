@@ -3,7 +3,7 @@
 #include <sstream>
 #include <iostream>
 #include <vector>
-#include "pow.hpp"
+#include "../common/pow.hpp"
 
 LinearFSM::LinearFSM(const GF &gf, const GFMatrix &A, const GFMatrix &B, const GFMatrix &C, const GFMatrix &D, slong n)
     : gf(gf), A(this->gf, A), B(this->gf, B), C(this->gf, C), D(this->gf, D), state(this->gf, 1, n) {}
@@ -40,7 +40,7 @@ GFMatrix LinearFSM::stateFunction(const GFMatrix &state, const GFMatrix &input) 
     return state * A + input * B;
 }
 GFMatrix LinearFSM::outputFunction(const GFMatrix &state, const GFMatrix &input) const {
-    return state * C + input * B;
+    return state * C + input * D;
 }
 
 uint64_t LinearFSM::numInputs() const {
@@ -208,24 +208,6 @@ std::ostream& operator<<(std::ostream &os, const LinearFSM &lin) {
     return os;
 }
 
-class LinearFSM::Iterator {
-private:
-    GFMatrix mat;
-    fq_t one;
-    bool end;
-
-    friend class LinearFSM;
-    Iterator(const GF &gf, slong size, bool end);
-    const fq_ctx_t &getCTX() const;
-public:
-    Iterator(const Iterator &other);
-    ~Iterator();
-    Iterator &operator++();
-    Iterator operator++(int);
-    const GFMatrix &operator*() const;
-    bool operator!=(const Iterator &other) const;
-};
-
 LinearFSM::Iterator::Iterator(const Iterator &other)
 : mat(other.mat), end(other.end) {
     fq_init(this->one, this->getCTX());
@@ -270,15 +252,6 @@ bool LinearFSM::Iterator::operator!=(const Iterator &other) const {
     return this->end != other.end;
 }
 
-auto LinearFSM::range(Iterator begin, Iterator end) const {
-    struct Range {
-        Iterator b, e;
-        Iterator begin() const { return b; }
-        Iterator end() const { return e; }
-    };
-    return Range{begin, end};
-}
-
 LinearFSM::Iterator LinearFSM::inputBegin() const {
     return Iterator(this->gf, this->inputLength(), false);
 }
@@ -303,14 +276,18 @@ LinearFSM::Iterator LinearFSM::outputEnd() const {
     return Iterator(this->gf, this->outputLength(), true);
 }
 
-auto LinearFSM::inputRange() const {
-    return range(this->inputBegin(), this->inputEnd());
+LinearFSM::Range LinearFSM::inputRange() const {
+    return Range(this->inputBegin(), this->inputEnd());
 }
 
-auto LinearFSM::stateRange() const {
-    return range(this->stateBegin(), this->stateEnd());
+LinearFSM::Range LinearFSM::stateRange() const {
+    return Range(this->stateBegin(), this->stateEnd());
 }
 
-auto LinearFSM::outputRange() const {
-    return range(this->outputBegin(), this->outputEnd());
+LinearFSM::Range LinearFSM::outputRange() const {
+    return Range(this->outputBegin(), this->outputEnd());
+}
+
+uint64_t LinearFSM::getMemoryUpperBound() const {
+    return this->A.minPolyDegree();
 }

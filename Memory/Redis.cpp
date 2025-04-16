@@ -61,23 +61,34 @@ static void processRedisReply(redisReply *reply, std::vector<std::vector<std::st
     }
 }
 
-std::vector<std::vector<std::string>> RedisContextWrapper::command(const char* format, ...) {
+static std::string join(const std::vector<std::string> &vec, const std::string &sep = " ") {
+    std::ostringstream oss;
+    for (const std::string &s : vec)
+        oss << s << sep;
+    return oss.str();
+}
+
+std::vector<std::vector<std::string>> RedisContextWrapper::command(const std::vector<std::string> &args) {
     redisReply* reply = nullptr;
     std::vector<std::vector<std::string>> result;
-    va_list ap;
-    va_start(ap, format);
+
+    std::vector<const char*> argv;
+    std::vector<size_t> argvlen;
+    for (const auto& arg : args) {
+        argv.push_back(arg.c_str());
+        argvlen.push_back(arg.size());
+    }
+
     for (uint8_t i = 0; i < CONNECTION_ATTEMPTS; ++i) {
-        va_list ap_copy;
-        va_copy(ap_copy, ap);
-        reply = (redisReply*)redisvCommand(this->c, format, ap_copy);
-        va_end(ap_copy);
+        std::lock_guard<std::mutex> lock(this->mutex);
+        reply = (redisReply*)redisCommandArgv(this->c, argv.size(), argv.data(), argvlen.data());
         if (reply && reply->type != REDIS_REPLY_ERROR) {
             processRedisReply(reply, result);
             break;
         }
         if (!is_shutting_down.load())
             std::cerr << "Ошибка Redis: " + std::string(this->c->errstr) + 
-                ", команда: " + std::string(format) + ". Попытка подключения " +
+                ", команда: " + join(args) + ". Попытка подключения " +
                 std::to_string(i) + " из " + std::to_string(CONNECTION_ATTEMPTS) + ".\n";
         if (reply) {
             freeReplyObject(reply);
@@ -88,7 +99,7 @@ std::vector<std::vector<std::string>> RedisContextWrapper::command(const char* f
     }
     if (!reply) {
         std::string error_msg = "Ошибка Redis: " + std::string(this->c->errstr) + 
-            ", команда: " + std::string(format);
+            ", команда: " + join(args);
         throw std::runtime_error(error_msg);
     }
     freeReplyObject(reply);
@@ -145,7 +156,7 @@ Container::Container() {
     std::cout << "[*] Ожидание запуска Redis..." << std::endl;
     try {
         RedisContextWrapper ctx;
-        ctx.command("PING");
+        ctx.command({"PING"});
         std::cout << "[+] Redis доступен!" << std::endl;
     } catch (const std::exception& e) {
         throw std::runtime_error("Redis не запустился: " + std::string(e.what()));

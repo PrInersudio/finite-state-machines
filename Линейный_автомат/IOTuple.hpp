@@ -3,17 +3,18 @@
 
 #include <string>
 #include <vector>
+#include "../common/GF.hpp"
 
 class IOTuple {
 private:
-    std::vector<bool> input;
-    std::vector<bool> output;
+    std::vector<uint64_t> input;
+    std::vector<uint64_t> output;
 public:
     IOTuple();
-    IOTuple(bool input, bool output);
+    IOTuple(const GFMatrix &input, const GFMatrix &output);
     IOTuple(const IOTuple& other);
     IOTuple(const std::string &str);
-    void push(bool input, bool output);
+    void push(const GFMatrix &input, const GFMatrix &output);
     bool operator<(const IOTuple &other) const;
     bool operator==(const IOTuple& other) const;
     friend std::ostream &operator<<(std::ostream &os, const IOTuple &io);

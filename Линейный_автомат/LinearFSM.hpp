@@ -1,7 +1,7 @@
 #ifndef LINEARFSM_HPP
 #define LINEARFSM_HPP
 
-#include "GF.hpp"
+#include "../common/GF.hpp"
 #include <string>
 
 class LinearFSM {
@@ -22,16 +22,42 @@ public:
     bool isStronglyConnected() const;
     LinearFSM minimize(bool print_degree_of_distinguishability) const;
     std::string toString() const;
-    class Iterator;
+    class Iterator {
+    private:
+        GFMatrix mat;
+        fq_t one;
+        bool end;
+    
+        friend class LinearFSM;
+        Iterator(const GF &gf, slong size, bool end);
+        const fq_ctx_t &getCTX() const;
+    public:
+        Iterator(const Iterator &other);
+        ~Iterator();
+        Iterator &operator++();
+        Iterator operator++(int);
+        const GFMatrix &operator*() const;
+        bool operator!=(const Iterator &other) const;
+    };
+    class Range {
+        private:
+            Iterator b, e;
+        public:
+            Range(const Iterator &b, const Iterator &e)
+                : b(b), e(e) {}
+            Iterator begin() const { return b; }
+            Iterator end() const { return e; }
+    };
     Iterator inputBegin() const;
     Iterator inputEnd() const;
     Iterator stateBegin() const;
     Iterator stateEnd() const;
     Iterator outputBegin() const;
     Iterator outputEnd() const;
-    auto inputRange() const;
-    auto stateRange() const;
-    auto outputRange() const;
+    Range inputRange() const;
+    Range stateRange() const;
+    Range outputRange() const;
+    uint64_t getMemoryUpperBound() const;
 private:
     const GF gf;
     const GFMatrix A, B, C, D;
@@ -40,7 +66,7 @@ private:
     GFMatrix Mt(const slong t) const;
     GFMatrix buildKt(const slong t) const;
     slong degreeOfDistinguishability(const GFMatrix &Kn) const;
-    auto range(Iterator begin, Iterator end) const;
+    Range range(Iterator begin, Iterator end) const;
 };
 
 LinearFSM initLinearFSM(std::string filename);

@@ -4,6 +4,7 @@
 #include <hiredis/hiredis.h>
 #include <vector>
 #include <string>
+#include <mutex>
 
 #define IP "127.0.0.1"
 #define PORT 6379
@@ -14,11 +15,12 @@ void setShutdownFlag();
 class RedisContextWrapper {
 private:
     redisContext* c;
+    std::mutex mutex;
 
     void reconnect();
 public:
     RedisContextWrapper();
-    std::vector<std::vector<std::string>> command(const char* format, ...);
+    std::vector<std::vector<std::string>> command(const std::vector<std::string> &args);
     ~RedisContextWrapper();
 };
 

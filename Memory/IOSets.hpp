@@ -64,13 +64,13 @@ IOSets<IOType, StateType>::IOSets(uint64_t memory_size) : memory_size(memory_siz
 template <typename IOType, typename StateType>
 void IOSets<IOType, StateType>::clear(RedisContextWrapper &ctx) {
     for (const StateType &state : this->actual_states)
-        ctx.command("DEL %s", getIOSetsKey(state, this->memory_size).c_str());
+        ctx.command({"DEL", getIOSetsKey(state, this->memory_size)});
     this->actual_states.clear();
 }
 
 template <typename IOType, typename StateType>
 void IOSets<IOType, StateType>::insert(RedisContextWrapper &ctx, const StateType &state, const IOType &io) {
-    ctx.command("SADD %s %s", getIOSetsKey(state, this->memory_size).c_str(), io.toString().c_str());
+    ctx.command({"SADD", getIOSetsKey(state, this->memory_size), io.toString()});
     this->actual_states.insert(state);
 }
 
@@ -82,7 +82,7 @@ IOSets<IOType, StateType>::Iterator::Iterator(RedisContextWrapper &ctx, const st
 
 template <typename IOType, typename StateType>
 void IOSets<IOType, StateType>::Iterator::fetch_next_batch() {
-    std::vector<std::vector<std::string>> reply = ctx.command("SSCAN %s %s", key.c_str(), cursor.c_str());
+    std::vector<std::vector<std::string>> reply = ctx.command({"SSCAN", key, cursor});
     this->cursor = reply[0][0];
     this->current_batch.clear();
     this->current_batch.reserve(reply[1].size());
@@ -144,13 +144,11 @@ bool IOSets<IOType, StateType>::intersects(
     const StateType &state2
 ) const {
     std::string intersection_key = getIntersectionKey(state1, state2, this->memory_size);
-    ctx.command("SINTERSTORE %s %s %s", 
-        intersection_key.c_str(), 
-        getIOSetsKey(state1, memory_size).c_str(), 
-        getIOSetsKey(state2, memory_size).c_str());
-    auto exists_reply = ctx.command("EXISTS %s", intersection_key.c_str());
+    ctx.command({"SINTERSTORE", 
+        intersection_key, getIOSetsKey(state1, memory_size), getIOSetsKey(state2, memory_size)});
+    auto exists_reply = ctx.command({"EXISTS", intersection_key});
     bool intersects = std::stoi(exists_reply[0][0]) > 0;
-    ctx.command("DEL %s", intersection_key.c_str());
+    ctx.command({"DEL", intersection_key});
     return intersects;
 }
 
